@@ -221,7 +221,7 @@
         </div>
       </section>
 
-      <!-- 상호 분석 섹션 (수정 완료) -->
+      <!-- 상호 분석 섹션 (요청사항 반영: 날짜 시간 제거 및 주소 전체 표시) -->
       <section class="bg-white border-2 border-brand-200 rounded-2xl p-4 shadow-sm space-y-3">
         <div class="flex items-center justify-between border-b border-brand-100 pb-2">
           <div class="flex items-center gap-2">
@@ -256,7 +256,6 @@
             
             <div id="shopReasonContainer" class="hidden text-[10.5px] text-amber-800 bg-amber-50 p-2 rounded-lg border border-amber-200 font-medium"></div>
 
-            <!-- 사업자번호, 전화번호 제거 및 매장주소 전체 줄바꿈 표시 -->
             <div class="text-[11px] text-slate-700 font-bold bg-white/90 p-2.5 rounded-lg border border-blue-100 space-y-2">
               <div class="leading-relaxed break-keep">
                 <span class="text-slate-500 font-medium">매장주소:</span> 
@@ -686,4 +685,177 @@
       setTxt('part1ShopName', currentShopName);
 
       const badgeContainer = document.getElementById('shopStatusBadgeContainer');
-      const
+      const reasonContainer = document.getElementById('shopReasonContainer');
+
+      if (data.shopConfidence === 'estimated') {
+        if (badgeContainer) {
+          badgeContainer.innerHTML = `<span class="text-[10px] bg-amber-500 text-white font-black px-2.5 py-0.5 rounded-full shadow-xs"><i class="fa-solid fa-triangle-exclamation"></i> AI 추정 (확인 필요)</span>`;
+        }
+        if (reasonContainer && data.shopReason) {
+          reasonContainer.innerText = `💡 유추 근거: ${data.shopReason}`;
+          reasonContainer.classList.remove('hidden');
+        }
+      } else if (data.shopConfidence === 'official') {
+        if (badgeContainer) {
+          badgeContainer.innerHTML = `<span class="text-[10px] bg-emerald-600 text-white font-black px-2.5 py-0.5 rounded-full shadow-xs"><i class="fa-solid fa-circle-check"></i> 공식 정보</span>`;
+        }
+        if (reasonContainer) reasonContainer.classList.add('hidden');
+      } else {
+        if (badgeContainer) {
+          badgeContainer.innerHTML = `<span class="text-[10px] bg-slate-400 text-white font-black px-2.5 py-0.5 rounded-full">정보 없음</span>`;
+        }
+        if (reasonContainer) reasonContainer.classList.add('hidden');
+      }
+
+      currentShopAddress = data.address || '정보없음';
+      setTxt('part1Address', currentShopAddress);
+      
+      const copyBtn = document.getElementById('copyAddressBtn');
+      if (copyBtn) {
+        if (currentShopAddress !== '정보없음') copyBtn.classList.remove('hidden');
+        else copyBtn.classList.add('hidden');
+      }
+
+      const products = data.products || [];
+      const overallElements = data.overallElements || [];
+      setTxt('productCountBadge', `총 ${products.length}개 품목`);
+
+      const cardListContainer = document.getElementById('productCardList');
+      if(!cardListContainer) return;
+      cardListContainer.innerHTML = '';
+      
+      let totalOriginalSum = 0;
+      let totalProductDiscountSum = 0;
+      let totalCalculatedProductsAmount = 0;
+
+      const fragment = document.createDocumentFragment();
+
+      products.forEach((item, index) => {
+        let originalPrice = toFastNumber(item.totalPrice || item.finalPrice);
+        let numDisc = toFastNumber(item.discount);
+        let finalPrice = toFastNumber(item.finalPrice || (originalPrice - numDisc));
+        
+        totalOriginalSum += originalPrice;
+        totalProductDiscountSum += numDisc;
+        totalCalculatedProductsAmount += finalPrice;
+
+        const resolvedQuery = item.productAi || item.productOcr;
+        const searchURL = getSmartSearchURL(resolvedQuery, currentSearchBrand);
+
+        let discountDisplay = `<span class="font-black text-sm text-rose-600">-${numDisc.toLocaleString()}</span>`;
+        if (numDisc > 0 && item.discountName) {
+            discountDisplay = `
+                <span class="font-black text-sm text-rose-600 leading-none mt-1">-${numDisc.toLocaleString()}</span>
+                <span class="block text-[8.5px] text-rose-500 font-bold truncate w-full px-1 mt-1 leading-tight">(${item.discountName})</span>
+            `;
+        }
+
+        const card = document.createElement('div');
+        card.className = "bg-white border-2 border-slate-200 rounded-2xl p-3.5 space-y-3 shadow-sm text-xs";
+        card.innerHTML = `
+          <div class="flex items-center justify-between border-b border-slate-100 pb-2 gap-2">
+            <div class="flex items-center gap-1.5 min-w-0 flex-1">
+              <span class="font-bold text-slate-700">품목 ${index + 1}</span>
+              <span class="text-slate-500 truncate">${item.productOcr || ''}</span>
+            </div>
+            <button type="button" class="search-action-btn bg-brand-50 hover:bg-brand-100 text-brand-700 border border-brand-200 text-[11px] font-black py-1.5 px-3 rounded-xl flex items-center gap-1.5 shadow-xs transition active:scale-95 shrink-0">
+              <i class="fa-solid fa-magnifying-glass text-brand-600"></i> 제품검색
+            </button>
+          </div>
+          <div class="bg-slate-50 p-2 rounded-xl border border-slate-100">
+            <span class="text-[10px] text-brand-600 font-bold">제품명 [AI 복원]</span>
+            <p class="font-black text-slate-900 text-sm">${item.productAi || item.productOcr || ''}</p>
+          </div>
+          <div class="grid grid-cols-3 gap-1 text-center bg-white p-2 rounded-lg border border-slate-200">
+            <div class="flex flex-col justify-center"><span class="text-[9px] text-slate-500 block">단가*수량</span><span class="font-black text-sm text-slate-900">${originalPrice.toLocaleString()}</span></div>
+            <div class="border-x flex flex-col items-center justify-center overflow-hidden"><span class="text-[9px] text-slate-500 block shrink-0">할인액</span>${discountDisplay}</div>
+            <div class="flex flex-col justify-center"><span class="text-[9px] text-slate-500 block">금액</span><span class="font-black text-sm text-brand-700">${finalPrice.toLocaleString()}</span></div>
+          </div>
+        `;
+
+        const actionBtn = card.querySelector('.search-action-btn');
+        if (actionBtn) {
+          actionBtn.onclick = () => openCompactPopup(searchURL);
+        }
+
+        fragment.appendChild(card);
+      });
+
+      cardListContainer.appendChild(fragment);
+
+      const summaryContainer = document.getElementById('summaryItemsContainer');
+      if(summaryContainer) {
+        let summaryHTML = `<div class="flex justify-between font-bold"><span>품목 정가 합계</span><span>${totalOriginalSum.toLocaleString()}원</span></div>`;
+        
+        if (totalProductDiscountSum > 0) {
+          summaryHTML += `<div class="flex justify-between font-bold text-rose-600"><span>└ 품목 할인 총액</span><span>-${totalProductDiscountSum.toLocaleString()}원</span></div>`;
+        }
+
+        if (overallElements.length === 0) {
+           summaryHTML += `<div class="flex justify-between font-bold text-slate-500"><span>└ 전체 할인</span><span>0원</span></div>`;
+        } else {
+            overallElements.forEach(el => {
+              let amtVal = Number(el.amount || 0);
+              if (amtVal < 0) {
+                summaryHTML += `<div class="flex justify-between font-bold text-rose-600"><span>└ ${el.name}</span><span>${amtVal.toLocaleString()}원</span></div>`;
+              } else {
+                summaryHTML += `<div class="flex justify-between font-bold text-amber-700"><span>└ ${el.name}</span><span>+${amtVal.toLocaleString()}원</span></div>`;
+              }
+            });
+        }
+
+        summaryContainer.innerHTML = summaryHTML;
+
+        const sumOverallEtc = overallElements.reduce((acc, el) => acc + Number(el.amount || 0), 0);
+        const resolvedTotal = (data.receiptTotal && data.receiptTotal > 0)
+          ? data.receiptTotal
+          : (totalCalculatedProductsAmount + sumOverallEtc);
+
+        setTxt('summaryFinalPrice', `${resolvedTotal.toLocaleString()}원`);
+      }
+      
+      const summarySec = document.getElementById('receiptSummarySection');
+      if(summarySec) summarySec.classList.remove('hidden');
+    }
+
+    function openMapSearchPopup() { 
+      if (!currentShopAddress || currentShopAddress.includes("정보없음")) return;
+
+      let rawAddr = currentShopAddress.trim()
+        .replace(/\([^)]*\)/g, "")
+        .replace(/(지하)?\d+[층층상가]\s*(\d+[호호])?/g, "")
+        .replace(/\b\d+호\b/g, "");
+
+      let addressParts = rawAddr.trim().split(/\s+/);
+      let cutoffIndex = -1;
+      for (let i = 0; i < addressParts.length; i++) {
+        if (addressParts[i].endsWith('로') || addressParts[i].endsWith('길')) {
+          cutoffIndex = i;
+          if (i + 1 < addressParts.length && /^\d+(-?\d+)?$/.test(addressParts[i + 1])) {
+            cutoffIndex = i + 1;
+          }
+          break;
+        }
+      }
+
+      let shortAddress = cutoffIndex !== -1 ? addressParts.slice(0, cutoffIndex + 1).join(" ") : addressParts.slice(0, 5).join(" ");
+      let cleanShopName = "";
+      if (currentShopName && !currentShopName.includes("정보없음")) {
+        cleanShopName = currentShopName
+          .replace(/\(주\)|\(유\)|\(합명\)|\(합자\)|\(사\)/g, "")
+          .replace(/주식회사|유한회사|사단법인|AI 추정/g, "")
+          .trim();
+      }
+
+      let targetKeyword = cleanShopName ? `${cleanShopName} ${shortAddress}` : shortAddress;
+      targetKeyword = targetKeyword.replace(/\s+/g, " ").trim();
+
+      let mapSearchURL = `https://search.naver.com/search.naver?query=${encodeURIComponent(targetKeyword)}`;
+      openCompactPopup(mapSearchURL);
+    }
+    
+    function resetSystem() { clearAnalysisResidue(); }
+    function scrollToTop() { window.scrollTo({ top: 0, behavior: 'smooth' }); }
+  </script>
+</body>
+</html>

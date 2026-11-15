@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-  <title>지능형 인공지능 가계지출 분석기</title>
+  <title>지능형 AI 영수증 분석앱</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
@@ -70,7 +70,7 @@
         <div class="w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center text-white shadow-md shrink-0"><i class="fa-solid fa-receipt text-lg"></i></div>
         <div class="min-w-0 flex-1">
           <p class="text-[10px] font-black text-brand-300 tracking-tight leading-none mb-1">가계동향조사를 위한</p>
-          <h1 class="font-black text-sm sm:text-base tracking-tight text-white truncate leading-none">지능형 AI 가계지출 분석앱</h1>
+          <h1 class="font-black text-sm sm:text-base tracking-tight text-white truncate leading-none">지능형 AI 영수증 분석앱</h1>
         </div>
       </div>
       <div class="flex items-center gap-1.5 shrink-0">
@@ -83,7 +83,10 @@
       <section class="bg-white rounded-2xl p-4 border-2 border-slate-200 shadow-sm relative overflow-hidden space-y-3">
         <div class="flex items-center justify-between">
           <span class="text-xs font-black text-slate-700 flex items-center gap-1.5"><i class="fa-solid fa-camera-retro text-brand-600"></i> 스캔 상태</span>
-          <span id="scanStatusBadge" class="text-[11px] bg-slate-100 text-slate-700 border border-slate-300 font-extrabold px-2.5 py-0.5 rounded-full">● 대기 중</span>
+          <div class="flex items-center gap-1.5">
+            <span id="activeModelBadge" class="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold px-2.5 py-0.5 rounded-full hidden">AI: -</span>
+            <span id="scanStatusBadge" class="text-[11px] bg-slate-100 text-slate-700 border border-slate-300 font-extrabold px-2.5 py-0.5 rounded-full">● 대기 중</span>
+          </div>
         </div>
         <div class="relative w-full min-h-[190px] bg-slate-50 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center p-2">
           <div id="scannerLine" class="hidden absolute left-2 right-2 h-1 bg-gradient-to-r from-transparent via-brand-600 to-transparent shadow-[0_0_10px_#2563eb] z-20 moving-light pointer-events-none"></div>
@@ -237,6 +240,8 @@
       if(summarySec) summarySec.classList.add('hidden');
       const scanBadge = document.getElementById('scanStatusBadge');
       if(scanBadge) { scanBadge.innerText = '● 대기 중'; scanBadge.className = 'text-[11px] bg-slate-100 text-slate-700 border border-slate-300 font-extrabold px-2.5 py-0.5 rounded-full'; }
+      const modelBadge = document.getElementById('activeModelBadge');
+      if(modelBadge) modelBadge.classList.add('hidden');
     }
 
     function triggerCamera() { clearAnalysisResidue(); const cam = document.getElementById('cameraInput'); if(cam) { cam.value = ""; cam.click(); } }
@@ -362,6 +367,14 @@
 
       const scanBadge = document.getElementById('scanStatusBadge');
       if (scanBadge) { scanBadge.innerText = '● 분석 완료'; scanBadge.className = 'text-[11px] bg-emerald-50 text-emerald-700 border border-emerald-300 font-extrabold px-2.5 py-0.5 rounded-full'; }
+
+      if (data.activeModel) {
+        const modelBadge = document.getElementById('activeModelBadge');
+        if (modelBadge) {
+          modelBadge.innerText = `AI: ${data.activeModel}`;
+          modelBadge.classList.remove('hidden');
+        }
+      }
 
       let rawShopOcr = data.shopOcr || '정보없음';
       setTxt('part1ShopOcr', (rawShopOcr.includes('미확인') || rawShopOcr.includes('정보없음') || rawShopOcr.length < 2) ? '정보없음' : rawShopOcr);

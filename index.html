@@ -84,6 +84,7 @@
   </div>
 
   <div class="w-full max-w-md mx-auto bg-white min-h-screen flex flex-col shadow-2xl relative border-x border-slate-200">
+    <!-- 💡 헤더 영역: 타이틀 공간 우측 상단에 모델명 뱃지 배치 -->
     <header class="bg-slate-900 text-white px-4 py-3 sticky top-0 z-40 flex items-center justify-between shadow-md">
       <div class="flex items-center gap-2.5 min-w-0 flex-1 pr-2">
         <div class="w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center text-white shadow-md shrink-0"><i class="fa-solid fa-receipt text-lg"></i></div>
@@ -92,21 +93,18 @@
           <h1 class="font-black text-sm sm:text-base tracking-tight text-white truncate leading-none">지능형 AI 영수증 분석앱</h1>
         </div>
       </div>
-      <div class="flex items-center gap-1.5 shrink-0">
+      <div class="flex items-center gap-2 shrink-0">
+        <span id="headerModelBadge" class="text-[10px] bg-indigo-900/80 text-indigo-200 border border-indigo-700 font-bold px-2 py-1 rounded-lg shadow-inner">gemini-3.8-flash</span>
         <button onclick="resetSystem()" class="text-slate-400 hover:text-white bg-slate-800 p-2 rounded-full active:bg-slate-700 transition" title="초기화"><i class="fa-solid fa-rotate-right text-xs"></i></button>
       </div>
     </header>
 
     <main class="flex-1 p-4 space-y-4 bg-white pb-24" style="touch-action: auto;">
-      <!-- 스캐너 섹션 -->
+      <!-- 스캐너 섹션 (모델명 뱃지 제거 완료) -->
       <section class="bg-white rounded-2xl p-4 border-2 border-slate-200 shadow-sm relative overflow-hidden space-y-3">
         <div class="flex items-center justify-between">
           <span class="text-xs font-black text-slate-700 flex items-center gap-1.5"><i class="fa-solid fa-camera-retro text-brand-600"></i> 스캔 상태</span>
-          <div class="flex items-center gap-1.5">
-            <!-- 💡 앱 화면에서 현재 사용하는 모델명 ID를 실시간으로 보여주는 뱃지 -->
-            <span id="activeModelBadge" class="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold px-2.5 py-0.5 rounded-full">AI: gemini-3.8-flash</span>
-            <span id="scanStatusBadge" class="text-[11px] bg-slate-100 text-slate-700 border border-slate-300 font-extrabold px-2.5 py-0.5 rounded-full">● 대기 중</span>
-          </div>
+          <span id="scanStatusBadge" class="text-[11px] bg-slate-100 text-slate-700 border border-slate-300 font-extrabold px-2.5 py-0.5 rounded-full">● 대기 중</span>
         </div>
         <div class="relative w-full min-h-[190px] bg-slate-50 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center p-2">
           <div id="scannerLine" class="hidden absolute left-2 right-2 h-1 bg-gradient-to-r from-transparent via-brand-600 to-transparent shadow-[0_0_10px_#2563eb] z-20 moving-light pointer-events-none"></div>
@@ -200,11 +198,7 @@
   </div>
 
   <script>
-    // =========================================================================
-    // [관리자 설정 구역] 지정된 인증 암호 (202611123456)
-    // =========================================================================
     const ADMIN_SECRET_PREFIX = "202611123456"; 
-    // =========================================================================
 
     let currentShopAddress = "", currentShopName = "", currentSearchBrand = "", activeReceiptBase64 = null, cropperInstance = null, currentSelectedSource = "", syncBoxRatio = null;
 
@@ -425,8 +419,8 @@
       if (scanBadge) { scanBadge.innerText = '● 분석 완료'; scanBadge.className = 'text-[11px] bg-emerald-50 text-emerald-700 border border-emerald-300 font-extrabold px-2.5 py-0.5 rounded-full'; }
 
       if (data.activeModel) {
-        const modelBadge = document.getElementById('activeModelBadge');
-        if (modelBadge) modelBadge.innerText = `AI: ${data.activeModel}`;
+        const modelBadge = document.getElementById('headerModelBadge');
+        if (modelBadge) modelBadge.innerText = data.activeModel;
       }
 
       let rawShopOcr = data.shopOcr || '정보없음';

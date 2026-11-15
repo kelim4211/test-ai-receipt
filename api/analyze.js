@@ -1,13 +1,11 @@
 export const maxDuration = 30;
 
-// 💡 24시간마다 정규 FLASH 모델 군집 중에서 가장 가성비 좋은 모델을 재검색하여 캐싱 (Flash-Lite 철저히 배제)
 let cachedFlashModel = null;
 let lastModelCheckTime = 0;
-const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24시간 주기
+const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 async function getPureFlashModel(apiKey) {
   const now = Date.now();
-  
   if (cachedFlashModel && (now - lastModelCheckTime < CHECK_INTERVAL_MS)) {
     return cachedFlashModel;
   }
@@ -18,22 +16,18 @@ async function getPureFlashModel(apiKey) {
     const data = await res.json();
     
     const models = data.models || [];
-    
-    // 1단계: 'generateContent'를 지원하고 interactions 전용 모델이 아닌 표준 멀티모달 모델 필터링
     const availableModels = models.filter(m => {
       const methods = m.supportedGenerationMethods || [];
       const name = (m.name || '').toLowerCase();
       return methods.includes('generateContent') && !name.includes('interactions');
     });
 
-    // 💡 2단계: 'flash' 키워드가 포함되어 있으면서 'lite'나 기타 변형은 철저히 배제한 '순수 정규 FLASH' 모델만 추출
     let pureFlashModels = availableModels.filter(m => {
       const name = m.name.toLowerCase();
       return name.includes('flash') && !name.includes('lite');
     });
 
     if (pureFlashModels.length > 0) {
-      // 최신 버전 번호가 반영된 정규 Flash 모델 우선 선택
       pureFlashModels.sort((a, b) => b.name.localeCompare(a.name));
       cachedFlashModel = pureFlashModels[0].name.replace('models/', '');
     } else if (availableModels.length > 0) {
@@ -62,7 +56,6 @@ export default async function handler(req, res) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) return res.status(500).json({ error: 'Vercel 환경 변수에 GEMINI_API_KEY가 설정되지 않았습니다.' });
 
-    // 💡 순수 정규 FLASH 모델 자동 탐색 함수 호출
     const targetModel = await getPureFlashModel(apiKey);
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
 

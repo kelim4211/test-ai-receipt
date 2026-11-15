@@ -1,5 +1,57 @@
 export const maxDuration = 30;
 
+// 💡 월 1회(30일 주기) 캐싱 및 성능 대비 최저가(프로모션 반영) Flash 모델 자동 선택을 위한 메모리 저장소
+let cachedFlashModel = null;
+let lastModelCheckTime = 0;
+const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
+
+async function getBestCostEffectiveFlashModel(apiKey) {
+  const now = Date.now();
+  
+  if (cachedFlashModel && (now - lastModelCheckTime < ONE_MONTH_MS)) {
+    return cachedFlashModel;
+  }
+
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+    if (!res.ok) return cachedFlashModel || 'gemini-3.6-flash';
+    const data = await res.json();
+    
+    const models = data.models || [];
+    const availableModels = models.filter(m => 
+      m.supportedGenerationMethods?.includes('generateContent')
+    );
+
+    let flashModels = availableModels.filter(m => m.name.includes('flash'));
+
+    if (flashModels.length > 0) {
+      flashModels.sort((a, b) => {
+        const nameA = a.name.toLowerCase();
+        const nameB = b.name.toLowerCase();
+        
+        const isLiteA = nameA.includes('lite');
+        const isLiteB = nameB.includes('lite');
+        if (isLiteA && !isLiteB) return 1;
+        if (!isLiteA && isLiteB) return -1;
+
+        return nameB.localeCompare(nameA);
+      });
+
+      cachedFlashModel = flashModels[0].name.replace('models/', '');
+    } else if (availableModels.length > 0) {
+      availableModels.sort((a, b) => b.name.localeCompare(a.name));
+      cachedFlashModel = availableModels[0].name.replace('models/', '');
+    } else {
+      cachedFlashModel = 'gemini-3.6-flash';
+    }
+
+    lastModelCheckTime = now;
+    return cachedFlashModel;
+  } catch (e) {
+    return cachedFlashModel || 'gemini-3.6-flash';
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: '잘못된 접근입니다.' });
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
@@ -12,7 +64,9 @@ export default async function handler(req, res) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) return res.status(500).json({ error: 'Vercel 환경 변수에 GEMINI_API_KEY가 설정되지 않았습니다.' });
 
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`;
+    const targetModel = await getBestCostEffectiveFlashModel(apiKey);
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
+
     const systemPrompt = `전문 분석기입니다. JSON을 절대 출력하지 마십시오. 오직 아래의 허용된 항목 규칙에 맞춰서만 출력하십시오. 
 
 [데이터 수집 원칙 (화이트리스트)]
@@ -63,6 +117,7 @@ TOTAL: 인쇄된_최종결제총액
     if (!rawText) return res.status(500).json({ error: 'AI 분석 결과가 비어 있습니다.' });
 
     const resultData = {
+      activeModel: targetModel,
       shopOcr: '정보없음', shopName: '정보없음', shopConfidence: 'none', shopReason: '',
       date: '미확인', address: '정보없음', searchBrand: '',
       overallElements: [], products: [], receiptTotal: 0, verificationStatus: 'NORMAL', verificationMessage: ''

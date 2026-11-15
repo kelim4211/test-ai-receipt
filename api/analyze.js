@@ -1,6 +1,6 @@
 export const maxDuration = 30;
 
-// 💡 월 1회(30일 주기) 캐싱 및 성능 대비 최저가(프로모션 반영) Flash 모델 자동 선택을 위한 메모리 저장소
+// 💡 월 1회(30일 주기) 캐싱 및 안정적인 일반 Flash 모델 자동 선택
 let cachedFlashModel = null;
 let lastModelCheckTime = 0;
 const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
@@ -14,15 +14,20 @@ async function getBestCostEffectiveFlashModel(apiKey) {
 
   try {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
-    if (!res.ok) return cachedFlashModel || 'gemini-3.6-flash';
+    if (!res.ok) return cachedFlashModel || 'gemini-2.5-flash';
     const data = await res.json();
     
     const models = data.models || [];
-    const availableModels = models.filter(m => 
-      m.supportedGenerationMethods?.includes('generateContent')
-    );
+    
+    // 💡 1단계: 'generateContent'를 지원하고, 특수 상호작용 전용 모델이 아닌 표준 모델만 필터링
+    const availableModels = models.filter(m => {
+      const methods = m.supportedGenerationMethods || [];
+      const name = m.name || '';
+      return methods.includes('generateContent') && !name.includes('interactions');
+    });
 
-    let flashModels = availableModels.filter(m => m.name.includes('flash'));
+    // 💡 2단계: 'flash' 키워드가 포함된 표준 가성비 모델 군집 추출
+    let flashModels = availableModels.filter(m => m.name.toLowerCase().includes('flash'));
 
     if (flashModels.length > 0) {
       flashModels.sort((a, b) => {
@@ -42,13 +47,13 @@ async function getBestCostEffectiveFlashModel(apiKey) {
       availableModels.sort((a, b) => b.name.localeCompare(a.name));
       cachedFlashModel = availableModels[0].name.replace('models/', '');
     } else {
-      cachedFlashModel = 'gemini-3.6-flash';
+      cachedFlashModel = 'gemini-2.5-flash';
     }
 
     lastModelCheckTime = now;
     return cachedFlashModel;
   } catch (e) {
-    return cachedFlashModel || 'gemini-3.6-flash';
+    return cachedFlashModel || 'gemini-2.5-flash';
   }
 }
 
@@ -83,7 +88,7 @@ export default async function handler(req, res) {
 
 [출력 양식]
 SHOP: 상호명[OCR] | 상호명[AI복원] | 일자(날짜만 YYYY-MM-DD 형태로 추출, 시간 제외) | 주소 | 상호명발췌근거 | 검색용대표브랜드명
-ITEM: 원본제품명 | 정밀복원제품명(줄임말이나 축약어는 검색 결과 및 문맥의 상세 수식어구 맛, 형태, 쿠키·링 등을 포함한 가장 온전하고 긴 풀네임으로 확장 복원할 것) | 단가곱하기수량의합 | 할인액 | 품목종속할인명(없으면 '없음') | 최종금액
+ITEM: 원본제품명 | 정밀복원제품명(줄임말이나 축약어는 검색 결과 및 문맥의 상세 수식어구 맛, 형태, 쿠키·링 등을 포함한 가장 온전하고 긴 풀네임으로 확장 복원할 것) | 단가곱하기수량의합 | 할인액 | 품목종속할인명(없으면 '없음') | 최종금ек
 ETC: 항목명 | 부호를포함한금액
 TOTAL: 인쇄된_최종결제총액
 

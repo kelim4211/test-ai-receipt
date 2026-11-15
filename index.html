@@ -103,7 +103,8 @@
         <div class="flex items-center justify-between">
           <span class="text-xs font-black text-slate-700 flex items-center gap-1.5"><i class="fa-solid fa-camera-retro text-brand-600"></i> 스캔 상태</span>
           <div class="flex items-center gap-1.5">
-            <span id="activeModelBadge" class="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold px-2.5 py-0.5 rounded-full hidden">AI: -</span>
+            <!-- 💡 앱 화면에서 현재 사용하는 모델명 ID를 실시간으로 보여주는 뱃지 -->
+            <span id="activeModelBadge" class="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold px-2.5 py-0.5 rounded-full">AI: gemini-3.8-flash</span>
             <span id="scanStatusBadge" class="text-[11px] bg-slate-100 text-slate-700 border border-slate-300 font-extrabold px-2.5 py-0.5 rounded-full">● 대기 중</span>
           </div>
         </div>
@@ -297,8 +298,6 @@
       if(summarySec) summarySec.classList.add('hidden');
       const scanBadge = document.getElementById('scanStatusBadge');
       if(scanBadge) { scanBadge.innerText = '● 대기 중'; scanBadge.className = 'text-[11px] bg-slate-100 text-slate-700 border border-slate-300 font-extrabold px-2.5 py-0.5 rounded-full'; }
-      const modelBadge = document.getElementById('activeModelBadge');
-      if(modelBadge) modelBadge.classList.add('hidden');
     }
 
     function triggerCamera() { clearAnalysisResidue(); const cam = document.getElementById('cameraInput'); if(cam) { cam.value = ""; cam.click(); } }
@@ -427,10 +426,7 @@
 
       if (data.activeModel) {
         const modelBadge = document.getElementById('activeModelBadge');
-        if (modelBadge) {
-          modelBadge.innerText = `AI: ${data.activeModel}`;
-          modelBadge.classList.remove('hidden');
-        }
+        if (modelBadge) modelBadge.innerText = `AI: ${data.activeModel}`;
       }
 
       let rawShopOcr = data.shopOcr || '정보없음';

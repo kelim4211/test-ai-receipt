@@ -1,14 +1,14 @@
 export const maxDuration = 30;
 
-// 💡 월 1회(30일 주기) 캐싱 및 안정적인 일반 Flash 모델 자동 선택
+// 💡 24시간마다 정규 FLASH 모델 군집 중에서 가장 가성비 좋은 모델을 재검색하여 캐싱 (Flash-Lite 철저히 배제)
 let cachedFlashModel = null;
 let lastModelCheckTime = 0;
-const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
+const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24시간 주기
 
-async function getBestCostEffectiveFlashModel(apiKey) {
+async function getPureFlashModel(apiKey) {
   const now = Date.now();
   
-  if (cachedFlashModel && (now - lastModelCheckTime < ONE_MONTH_MS)) {
+  if (cachedFlashModel && (now - lastModelCheckTime < CHECK_INTERVAL_MS)) {
     return cachedFlashModel;
   }
 
@@ -19,30 +19,23 @@ async function getBestCostEffectiveFlashModel(apiKey) {
     
     const models = data.models || [];
     
-    // 💡 1단계: 'generateContent'를 지원하고, 특수 상호작용 전용 모델이 아닌 표준 모델만 필터링
+    // 1단계: 'generateContent'를 지원하고 interactions 전용 모델이 아닌 표준 멀티모달 모델 필터링
     const availableModels = models.filter(m => {
       const methods = m.supportedGenerationMethods || [];
-      const name = m.name || '';
+      const name = (m.name || '').toLowerCase();
       return methods.includes('generateContent') && !name.includes('interactions');
     });
 
-    // 💡 2단계: 'flash' 키워드가 포함된 표준 가성비 모델 군집 추출
-    let flashModels = availableModels.filter(m => m.name.toLowerCase().includes('flash'));
+    // 💡 2단계: 'flash' 키워드가 포함되어 있으면서 'lite'나 기타 변형은 철저히 배제한 '순수 정규 FLASH' 모델만 추출
+    let pureFlashModels = availableModels.filter(m => {
+      const name = m.name.toLowerCase();
+      return name.includes('flash') && !name.includes('lite');
+    });
 
-    if (flashModels.length > 0) {
-      flashModels.sort((a, b) => {
-        const nameA = a.name.toLowerCase();
-        const nameB = b.name.toLowerCase();
-        
-        const isLiteA = nameA.includes('lite');
-        const isLiteB = nameB.includes('lite');
-        if (isLiteA && !isLiteB) return 1;
-        if (!isLiteA && isLiteB) return -1;
-
-        return nameB.localeCompare(nameA);
-      });
-
-      cachedFlashModel = flashModels[0].name.replace('models/', '');
+    if (pureFlashModels.length > 0) {
+      // 최신 버전 번호가 반영된 정규 Flash 모델 우선 선택
+      pureFlashModels.sort((a, b) => b.name.localeCompare(a.name));
+      cachedFlashModel = pureFlashModels[0].name.replace('models/', '');
     } else if (availableModels.length > 0) {
       availableModels.sort((a, b) => b.name.localeCompare(a.name));
       cachedFlashModel = availableModels[0].name.replace('models/', '');
@@ -69,7 +62,8 @@ export default async function handler(req, res) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) return res.status(500).json({ error: 'Vercel 환경 변수에 GEMINI_API_KEY가 설정되지 않았습니다.' });
 
-    const targetModel = await getBestCostEffectiveFlashModel(apiKey);
+    // 💡 순수 정규 FLASH 모델 자동 탐색 함수 호출
+    const targetModel = await getPureFlashModel(apiKey);
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
 
     const systemPrompt = `전문 분석기입니다. JSON을 절대 출력하지 마십시오. 오직 아래의 허용된 항목 규칙에 맞춰서만 출력하십시오. 
@@ -88,7 +82,7 @@ export default async function handler(req, res) {
 
 [출력 양식]
 SHOP: 상호명[OCR] | 상호명[AI복원] | 일자(날짜만 YYYY-MM-DD 형태로 추출, 시간 제외) | 주소 | 상호명발췌근거 | 검색용대표브랜드명
-ITEM: 원본제품명 | 정밀복원제품명(줄임말이나 축약어는 검색 결과 및 문맥의 상세 수식어구 맛, 형태, 쿠키·링 등을 포함한 가장 온전하고 긴 풀네임으로 확장 복원할 것) | 단가곱하기수량의합 | 할인액 | 품목종속할인명(없으면 '없음') | 최종금ек
+ITEM: 원본제품명 | 정밀복원제품명(줄임말이나 축약어는 검색 결과 및 문맥의 상세 수식어구 맛, 형태, 쿠키·링 등을 포함한 가장 온전하고 긴 풀네임으로 확장 복원할 것) | 단가곱하기수량의합 | 할인액 | 품목종속할인명(없으면 '없음') | 최종금액
 ETC: 항목명 | 부호를포함한금액
 TOTAL: 인쇄된_최종결제총액
 

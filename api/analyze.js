@@ -1,52 +1,7 @@
 export const maxDuration = 30;
 
-let cachedFlashModel = null;
-let lastModelCheckTime = 0;
-const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
-
-async function getPureFlashModel(apiKey) {
-  const now = Date.now();
-  if (cachedFlashModel && (now - lastModelCheckTime < CHECK_INTERVAL_MS)) {
-    return cachedFlashModel;
-  }
-
-  // 💡 실시간으로 구글 서버에 현재 사용 가능한 모델 목록을 요청합니다.
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
-  if (!res.ok) {
-    throw new Error(`모델 목록 실시간 조회 실패 (${res.status}): API 키나 네트워크 상태를 확인하세요.`);
-  }
-  
-  const data = await res.json();
-  const models = data.models || [];
-  
-  // interactions, chat, exp 전용 특수 모델을 엄격히 배제하고 generateContent 지원 모델만 실시간 필터링
-  const availableModels = models.filter(m => {
-    const methods = m.supportedGenerationMethods || [];
-    const name = (m.name || '').toLowerCase();
-    return methods.includes('generateContent') && 
-           !name.includes('interactions') && 
-           !name.includes('chat') && 
-           !name.includes('exp');
-  });
-
-  let pureFlashModels = availableModels.filter(m => {
-    const name = m.name.toLowerCase();
-    return name.includes('flash') && !name.includes('lite');
-  });
-
-  if (pureFlashModels.length > 0) {
-    pureFlashModels.sort((a, b) => b.name.localeCompare(a.name));
-    cachedFlashModel = pureFlashModels[0].name.replace('models/', '');
-  } else if (availableModels.length > 0) {
-    availableModels.sort((a, b) => b.name.localeCompare(a.name));
-    cachedFlashModel = availableModels[0].name.replace('models/', '');
-  } else {
-    throw new Error('사용 가능한 멀티모달 Flash 모델을 찾지 못했습니다.');
-  }
-
-  lastModelCheckTime = now;
-  return cachedFlashModel;
-}
+// 💡 가장 가성비 좋고 성능 뛰어난 표준 플래시 모델 고정 지정
+const TARGET_MODEL = 'gemini-3.8-flash';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: '잘못된 접근입니다.' });
@@ -60,9 +15,7 @@ export default async function handler(req, res) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) return res.status(500).json({ error: 'Vercel 환경 변수에 GEMINI_API_KEY가 설정되지 않았습니다.' });
 
-    // 실시간 동적 탐색으로 최적 모델 획득
-    const targetModel = await getPureFlashModel(apiKey);
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${TARGET_MODEL}:generateContent?key=${apiKey}`;
 
     const systemPrompt = `전문 분석기입니다. JSON을 절대 출력하지 마십시오. 오직 아래의 허용된 항목 규칙에 맞춰서만 출력하십시오. 
 
@@ -114,7 +67,7 @@ TOTAL: 인쇄된_최종결제총액
     if (!rawText) return res.status(500).json({ error: 'AI 분석 결과가 비어 있습니다.' });
 
     const resultData = {
-      activeModel: targetModel,
+      activeModel: TARGET_MODEL,
       shopOcr: '정보없음', shopName: '정보없음', shopConfidence: 'none', shopReason: '',
       date: '미확인', address: '정보없음', searchBrand: '',
       overallElements: [], products: [], receiptTotal: 0, verificationStatus: 'NORMAL', verificationMessage: ''

@@ -333,15 +333,12 @@
       if(analyzeBtn) analyzeBtn.disabled = true;
       const scannerLine = document.getElementById('scannerLine');
       if(scannerLine) scannerLine.classList.remove('hidden');
-      
-      const payloadImage = activeReceiptBase64;
-      purgeImageMemory();
 
       try {
         const response = await fetch('/api/analyze', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image: payloadImage })
+          body: JSON.stringify({ image: activeReceiptBase64 })
         });
         const textResult = await response.text();
         let result;

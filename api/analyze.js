@@ -16,12 +16,18 @@ async function getPureFlashModel(apiKey) {
     const data = await res.json();
     
     const models = data.models || [];
+    
+    // 💡 1단계: 'generateContent'를 지원하며, interactions 및 chat/exp 전용 규격 모델을 엄격하게 필터링
     const availableModels = models.filter(m => {
       const methods = m.supportedGenerationMethods || [];
       const name = (m.name || '').toLowerCase();
-      return methods.includes('generateContent') && !name.includes('interactions');
+      return methods.includes('generateContent') && 
+             !name.includes('interactions') && 
+             !name.includes('chat') && 
+             !name.includes('exp');
     });
 
+    // 💡 2단계: 'flash' 키워드가 포함되어 있고 'lite'나 변형이 없는 '순수 정규 FLASH' 모델만 추출
     let pureFlashModels = availableModels.filter(m => {
       const name = m.name.toLowerCase();
       return name.includes('flash') && !name.includes('lite');

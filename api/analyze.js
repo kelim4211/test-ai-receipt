@@ -10,43 +10,42 @@ async function getPureFlashModel(apiKey) {
     return cachedFlashModel;
   }
 
-  try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
-    if (!res.ok) return cachedFlashModel || 'gemini-2.5-flash';
-    const data = await res.json();
-    
-    const models = data.models || [];
-    
-    // 💡 interactions, chat, exp 전용 특수 모델을 엄격히 배제하고 generateContent 지원 모델만 추출
-    const availableModels = models.filter(m => {
-      const methods = m.supportedGenerationMethods || [];
-      const name = (m.name || '').toLowerCase();
-      return methods.includes('generateContent') && 
-             !name.includes('interactions') && 
-             !name.includes('chat') && 
-             !name.includes('exp');
-    });
-
-    let pureFlashModels = availableModels.filter(m => {
-      const name = m.name.toLowerCase();
-      return name.includes('flash') && !name.includes('lite');
-    });
-
-    if (pureFlashModels.length > 0) {
-      pureFlashModels.sort((a, b) => b.name.localeCompare(a.name));
-      cachedFlashModel = pureFlashModels[0].name.replace('models/', '');
-    } else if (availableModels.length > 0) {
-      availableModels.sort((a, b) => b.name.localeCompare(a.name));
-      cachedFlashModel = availableModels[0].name.replace('models/', '');
-    } else {
-      cachedFlashModel = 'gemini-2.5-flash';
-    }
-
-    lastModelCheckTime = now;
-    return cachedFlashModel;
-  } catch (e) {
-    return cachedFlashModel || 'gemini-2.5-flash';
+  // 💡 실시간으로 구글 서버에 현재 사용 가능한 모델 목록을 요청합니다.
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+  if (!res.ok) {
+    throw new Error(`모델 목록 실시간 조회 실패 (${res.status}): API 키나 네트워크 상태를 확인하세요.`);
   }
+  
+  const data = await res.json();
+  const models = data.models || [];
+  
+  // interactions, chat, exp 전용 특수 모델을 엄격히 배제하고 generateContent 지원 모델만 실시간 필터링
+  const availableModels = models.filter(m => {
+    const methods = m.supportedGenerationMethods || [];
+    const name = (m.name || '').toLowerCase();
+    return methods.includes('generateContent') && 
+           !name.includes('interactions') && 
+           !name.includes('chat') && 
+           !name.includes('exp');
+  });
+
+  let pureFlashModels = availableModels.filter(m => {
+    const name = m.name.toLowerCase();
+    return name.includes('flash') && !name.includes('lite');
+  });
+
+  if (pureFlashModels.length > 0) {
+    pureFlashModels.sort((a, b) => b.name.localeCompare(a.name));
+    cachedFlashModel = pureFlashModels[0].name.replace('models/', '');
+  } else if (availableModels.length > 0) {
+    availableModels.sort((a, b) => b.name.localeCompare(a.name));
+    cachedFlashModel = availableModels[0].name.replace('models/', '');
+  } else {
+    throw new Error('사용 가능한 멀티모달 Flash 모델을 찾지 못했습니다.');
+  }
+
+  lastModelCheckTime = now;
+  return cachedFlashModel;
 }
 
 export default async function handler(req, res) {
@@ -61,6 +60,7 @@ export default async function handler(req, res) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) return res.status(500).json({ error: 'Vercel 환경 변수에 GEMINI_API_KEY가 설정되지 않았습니다.' });
 
+    // 실시간 동적 탐색으로 최적 모델 획득
     const targetModel = await getPureFlashModel(apiKey);
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
 

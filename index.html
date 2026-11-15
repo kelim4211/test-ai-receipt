@@ -43,6 +43,25 @@
 </head>
 <body class="bg-slate-100 text-slate-800 antialiased min-h-screen flex flex-col justify-between selection:bg-brand-500 selection:text-white">
 
+  <!-- 관리자 암호 인증 모달 -->
+  <div id="authModal" class="fixed inset-0 z-50 bg-slate-950/90 flex items-center justify-center p-4 hidden">
+    <div class="bg-white w-full max-w-sm rounded-2xl p-6 space-y-4 shadow-2xl border border-slate-200">
+      <div class="text-center space-y-1">
+        <div class="w-12 h-12 bg-brand-50 text-brand-600 rounded-2xl mx-auto flex items-center justify-center text-xl shadow-sm mb-2">
+          <i class="fa-solid fa-lock"></i>
+        </div>
+        <h2 class="text-lg font-black text-slate-900">관리자 암호 인증</h2>
+        <p class="text-xs text-slate-500">서비스 이용을 위해 월별 접근 암호를 입력하세요.</p>
+      </div>
+      <div>
+        <input type="password" id="authPasswordInput" placeholder="접근 암호 입력" class="w-full bg-slate-50 border-2 border-slate-200 focus:border-brand-600 focus:bg-white text-center font-bold text-base py-3 px-4 rounded-xl outline-none transition">
+      </div>
+      <button type="button" onclick="verifyPassword()" class="w-full bg-brand-600 hover:bg-brand-700 active:scale-95 text-white font-black text-sm py-3.5 rounded-xl shadow-lg transition">
+        인증하기
+      </button>
+    </div>
+  </div>
+
   <!-- 자르기 모달 -->
   <div id="cropperModal" class="fixed inset-0 z-50 bg-slate-950/95 hidden flex flex-col justify-between p-2 select-none overflow-hidden" style="height: 100dvh; max-height: 100dvh; touch-action: none;">
     <div class="flex items-center justify-between text-white border-b border-slate-800 pb-2 px-1 shrink-0 h-11">
@@ -183,10 +202,29 @@
     let currentShopAddress = "", currentShopName = "", currentSearchBrand = "", activeReceiptBase64 = null, cropperInstance = null, currentSelectedSource = "", syncBoxRatio = null;
 
     window.onload = function() { 
+      checkAuthSession();
       clearAnalysisResidue(); 
       const modal = document.getElementById('cropperModal');
       if (modal) modal.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
     };
+
+    function checkAuthSession() {
+      const isAuthed = sessionStorage.getItem('receipt_app_auth');
+      if (isAuthed !== 'true') {
+        document.getElementById('authModal').classList.remove('hidden');
+      }
+    }
+
+    function verifyPassword() {
+      const inputVal = document.getElementById('authPasswordInput').value.trim();
+      if (inputVal.startsWith('202611') && inputVal.length >= 6) {
+        sessionStorage.setItem('receipt_app_auth', 'true');
+        document.getElementById('authModal').classList.add('hidden');
+      } else {
+        alert('암호가 올바르지 않습니다. 다시 확인해주세요.');
+        document.getElementById('authPasswordInput').value = '';
+      }
+    }
 
     function openCompactPopup(url) {
       if (!url || url.includes("정보없음") || url.includes("미확인")) return;

@@ -13,11 +13,23 @@ export default async function handler(req, res) {
     if (!apiKey) return res.status(500).json({ error: 'Vercel 환경 변수에 GEMINI_API_KEY가 설정되지 않았습니다.' });
 
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`;
-    const systemPrompt = `전문 분석기입니다. JSON을 절대 출력하지 마십시오. 오직 아래의 줄 단위 텍스트 형식 규칙에 맞춰서만 출력하십시오. 긴 영수증의 모든 품목을 누락 없이 빠짐없이 전부 추출하십시오.
+    const systemPrompt = `전문 분석기입니다. JSON을 절대 출력하지 마십시오. 오직 아래의 허용된 항목 규칙에 맞춰서만 출력하십시오. 
+
+[데이터 수집 원칙 (화이트리스트)]
+- 영수증에서 오직 가계지출 분석에 필요한 '날짜, 상호명, 주소, 품목명, 단가, 수량, 할인, 결제총액' 데이터만 추출하십시오.
+- 사업자등록번호, 대표자 성명, 매장 전화번호, 사업장 직통 연락처 등 민감·결합 정보는 절대 추출하거나 출력하지 말고 완벽히 배제할 것.
+
+[가장 중요한 규칙 1: 전체 출력 보장]
+- 긴 영수증이라도 중간에 임의로 생략하거나 멈추지 말고, 영수증에 인쇄된 모든 품목과 마지막 TOTAL 라인까지 누락 없이 100% 전부 출력하십시오. 토큰 제한으로 중간에 끊기는 일이 절대 없도록 하십시오.
+
+[가장 중요한 규칙 2: 품명 정밀 복원 및 검색 결과 활용 원칙]
+- 영수증 원본 단어(예: '오리온 초코' 또는 '오리온 초콜')를 기반으로 검색을 수행할 때, 검색엔진이 임의로 보정해 주는 단순 대표 명사(예: '오리온 초콜릿' 또는 '오리온 초코')로 무조건 축약하거나 멈추지 마십시오.
+- 검색 결과 문서 및 상품명에 '오리온 초코쿠키', '오리온 초코쿠키링' 등 여러 후보가 나타날 경우, 문맥과 원본 단어의 형태를 면밀히 파악하여 가장 구체적이고 온전한 정식 풀네임(예: 단순 수식어구가 포함된 '오리온 초코쿠키링' 등)을 선택하여 복원하십시오. 임의로 뒷부분을 잘라내어 축약하지 마십시오.
+- 영수증에 인쇄된 제품 품번(바코드 번호, 상품 코드 등)이 식별될 경우, 이를 제품 식별의 핵심 단서로 활용하여 오인식을 방지하고 가장 정확한 정식 풀네임을 복원하십시오. (단, 네이버 검색 쿼리에는 품번 숫자가 아닌 브랜드명과 텍스트 품명을 위주로 조합할 것)
 
 [출력 양식]
-SHOP: 상호명[OCR] | 상호명[AI복원] | 업종및가게성격 | 일자 | 주소 | 상호명발췌근거 | 검색용대표브랜드명
-ITEM: 원본제품명 | 정밀복원제품명 | 단가곱하기수량의합 | 할인액 | 품목종속할인명(없으면 '없음') | 최종금액
+SHOP: 상호명[OCR] | 상호명[AI복원] | 일자(날짜만 YYYY-MM-DD 형태로 추출, 시간 제외) | 주소 | 상호명발췌근거 | 검색용대표브랜드명
+ITEM: 원본제품명 | 정밀복원제품명(줄임말이나 축약어는 검색 결과 및 문맥의 상세 수식어구 맛, 형태, 쿠키·링 등을 포함한 가장 온전하고 긴 풀네임으로 확장 복원할 것) | 단가곱하기수량의합 | 할인액 | 품목종속할인명(없으면 '없음') | 최종금액
 ETC: 항목명 | 부호를포함한금액
 TOTAL: 인쇄된_최종결제총액
 
@@ -29,17 +41,14 @@ TOTAL: 인쇄된_최종결제총액
 
 [할인 분류 원칙]
 1. 상품 종속 할인 (ITEM 라인에 반영): 특정 개별 품목 바로 아래에 인쇄되어 귀속되는 경우.
-2. 거래/결제 종속 할인 (ETC 라인): 통신사, 제휴, 쿠폰 등 전체 구매조건 차감.
-
-[제외 규칙]
-- 세금 분리 라인 및 단순 수납 라인은 ITEM/ETC에서 완전 제외.`;
+2. 거래/결제 종속 할인 (ETC 라인): 통신사, 제휴, 쿠폰 등 전체 구매조건 차감.`;
 
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         system_instruction: { parts: [{ text: systemPrompt }] },
-        generationConfig: { max_output_tokens: 8192 },
+        generationConfig: { max_output_tokens: 65536 },
         contents: [{ parts: [{ text: "모든 품목을 누락 없이 정밀 분석하여 출력하십시오." }, { inline_data: { mime_type: "image/jpeg", data: imageBase64 } }] }]
       })
     });
@@ -55,7 +64,7 @@ TOTAL: 인쇄된_최종결제총액
 
     const resultData = {
       shopOcr: '정보없음', shopName: '정보없음', shopConfidence: 'none', shopReason: '',
-      shopIndustry: '', date: '미확인', address: '정보없음', searchBrand: '',
+      date: '미확인', address: '정보없음', searchBrand: '',
       overallElements: [], products: [], receiptTotal: 0, verificationStatus: 'NORMAL', verificationMessage: ''
     };
 
@@ -73,12 +82,13 @@ TOTAL: 인쇄된_최종결제총액
         let rawShopOcr = parts[0] || '정보없음', isOcrValid = !(rawShopOcr.includes('미확인') || rawShopOcr.includes('정보없음') || rawShopOcr.length < 2);
         resultData.shopOcr = isOcrValid ? rawShopOcr : '정보없음';
         if (!isOcrValid && parts[1] && !parts[1].includes('정보없음') && parts[1].length >= 2) {
-          resultData.shopName = parts[1]; resultData.shopConfidence = 'estimated'; resultData.shopReason = parts[5] || '';
+          resultData.shopName = parts[1]; resultData.shopConfidence = 'estimated'; resultData.shopReason = parts[4] || '';
         } else {
           resultData.shopName = isOcrValid ? rawShopOcr : '정보없음'; resultData.shopConfidence = isOcrValid ? 'official' : 'none';
         }
-        resultData.shopIndustry = parts[2] || ''; resultData.date = parts[3] || '미확인'; resultData.address = parts[4] || '정보없음';
-        resultData.searchBrand = (parts[6] && parts[6] !== '없음' && !parts[6].includes('정보없음')) ? parts[6] : '';
+        resultData.date = parts[2] || '미확인'; 
+        resultData.address = parts[3] || '정보없음';
+        resultData.searchBrand = (parts[5] && parts[5] !== '없음' && !parts[5].includes('정보없음')) ? parts[5] : '';
       } else if (trimmed.startsWith('ITEM:')) {
         const parts = trimmed.substring(5).split('|').map(cleanStr);
         if (parts[0] && !isExcluded(parts[0])) {

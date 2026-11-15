@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-  <title>지능형 AI 영수증 분석앱</title>
+  <title>지능형 인공지능 가계지출 분석기</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
@@ -43,26 +43,6 @@
 </head>
 <body class="bg-slate-100 text-slate-800 antialiased min-h-screen flex flex-col justify-between selection:bg-brand-500 selection:text-white">
 
-  <!-- 비밀번호 인증 화면 (처음 접속 시 표시) -->
-  <div id="authBox" class="fixed inset-0 z-50 bg-slate-900 flex flex-col items-center justify-center p-4">
-    <div class="w-full max-w-sm bg-white rounded-2xl p-6 shadow-2xl space-y-4 text-center">
-      <div class="w-12 h-12 bg-brand-100 text-brand-600 rounded-full flex items-center justify-center text-xl mx-auto">
-        <i class="fa-solid fa-lock"></i>
-      </div>
-      <div>
-        <h2 class="text-base font-black text-slate-900">사내 보안 인증</h2>
-        <p class="text-xs text-slate-500 mt-1">이번 달 접속 코드를 입력해주세요</p>
-      </div>
-      <div class="space-y-2">
-        <input type="password" id="passInput" placeholder="접속 코드 입력" class="w-full px-4 py-3 border-2 border-slate-200 rounded-xl text-center text-base font-bold outline-none focus:border-brand-600 transition" onkeydown="if(event.key === 'Enter') checkPassword()">
-        <p id="errorMsg" class="text-rose-600 text-xs font-bold hidden">비밀번호가 틀렸습니다. 다시 확인해주세요.</p>
-      </div>
-      <button type="button" onclick="checkPassword()" class="w-full bg-brand-600 hover:bg-brand-700 text-white font-black py-3 rounded-xl shadow-md transition active:scale-95 text-sm">
-        확인 및 접속
-      </button>
-    </div>
-  </div>
-
   <!-- 자르기 모달 -->
   <div id="cropperModal" class="fixed inset-0 z-50 bg-slate-950/95 hidden flex flex-col justify-between p-2 select-none overflow-hidden" style="height: 100dvh; max-height: 100dvh; touch-action: none;">
     <div class="flex items-center justify-between text-white border-b border-slate-800 pb-2 px-1 shrink-0 h-11">
@@ -90,7 +70,7 @@
         <div class="w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center text-white shadow-md shrink-0"><i class="fa-solid fa-receipt text-lg"></i></div>
         <div class="min-w-0 flex-1">
           <p class="text-[10px] font-black text-brand-300 tracking-tight leading-none mb-1">가계동향조사를 위한</p>
-          <h1 class="font-black text-sm sm:text-base tracking-tight text-white truncate leading-none">지능형 AI 영수증 분석앱</h1>
+          <h1 class="font-black text-sm sm:text-base tracking-tight text-white truncate leading-none">지능형 AI 가계지출 분석앱</h1>
         </div>
       </div>
       <div class="flex items-center gap-1.5 shrink-0">
@@ -197,9 +177,6 @@
   </div>
 
   <script>
-    /* [설정] 이달의 비밀번호 (매달 이 값을 직접 변경해서 서버에 업로드하시면 됩니다) */
-    const CURRENT_MONTH_PASSWORD = "202611748921"; // 예: YYYYMM + 난수 6자리 직접 입력
-
     let currentShopAddress = "", currentShopName = "", currentSearchBrand = "", activeReceiptBase64 = null, cropperInstance = null, currentSelectedSource = "", syncBoxRatio = null;
 
     window.onload = function() { 
@@ -207,19 +184,6 @@
       const modal = document.getElementById('cropperModal');
       if (modal) modal.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
     };
-
-    function checkPassword() {
-      const inputVal = document.getElementById('passInput').value.trim();
-      const errorMsg = document.getElementById('errorMsg');
-
-      if (inputVal === CURRENT_MONTH_PASSWORD) {
-        document.getElementById('authBox').classList.add('hidden');
-      } else {
-        errorMsg.classList.remove('hidden');
-        document.getElementById('passInput').value = '';
-        document.getElementById('passInput').focus();
-      }
-    }
 
     function openCompactPopup(url) {
       if (!url || url.includes("정보없음") || url.includes("미확인")) return;
@@ -268,7 +232,7 @@
       const countBadge = document.getElementById('productCountBadge');
       if(countBadge) countBadge.innerText = "총 0개 품목";
       const cardList = document.getElementById('productCardList');
-      if(cardList) cardList.innerHTML = '<div class="p-8 text-center text-slate-400 font-bold text-xs">사진을 첨부한 후 [분석 실행]을 누르세요.</div>';
+      if(cardList) cardList.innerHTML = '<div class="p-6 text-center text-slate-400 font-bold text-xs">사진을 첨부한 후 [분석 실행]을 누르세요.</div>';
       const summarySec = document.getElementById('receiptSummarySection');
       if(summarySec) summarySec.classList.add('hidden');
       const scanBadge = document.getElementById('scanStatusBadge');

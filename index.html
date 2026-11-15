@@ -84,7 +84,7 @@
   </div>
 
   <div class="w-full max-w-md mx-auto bg-white min-h-screen flex flex-col shadow-2xl relative border-x border-slate-200">
-    <!-- 💡 헤더 영역: 타이틀 공간 우측 상단에 모델명 뱃지 배치 -->
+    <!-- 💡 헤더 영역: 타이틀 공간 우측 상단에 숫자부터 시작하는 모델명 뱃지 배치 -->
     <header class="bg-slate-900 text-white px-4 py-3 sticky top-0 z-40 flex items-center justify-between shadow-md">
       <div class="flex items-center gap-2.5 min-w-0 flex-1 pr-2">
         <div class="w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center text-white shadow-md shrink-0"><i class="fa-solid fa-receipt text-lg"></i></div>
@@ -94,13 +94,13 @@
         </div>
       </div>
       <div class="flex items-center gap-2 shrink-0">
-        <span id="headerModelBadge" class="text-[10px] bg-indigo-900/80 text-indigo-200 border border-indigo-700 font-bold px-2 py-1 rounded-lg shadow-inner">gemini-3.8-flash</span>
+        <span id="headerModelBadge" class="text-[10px] bg-indigo-900/80 text-indigo-200 border border-indigo-700 font-bold px-2 py-1 rounded-lg shadow-inner">3.8-flash</span>
         <button onclick="resetSystem()" class="text-slate-400 hover:text-white bg-slate-800 p-2 rounded-full active:bg-slate-700 transition" title="초기화"><i class="fa-solid fa-rotate-right text-xs"></i></button>
       </div>
     </header>
 
     <main class="flex-1 p-4 space-y-4 bg-white pb-24" style="touch-action: auto;">
-      <!-- 스캐너 섹션 (모델명 뱃지 제거 완료) -->
+      <!-- 스캐너 섹션 -->
       <section class="bg-white rounded-2xl p-4 border-2 border-slate-200 shadow-sm relative overflow-hidden space-y-3">
         <div class="flex items-center justify-between">
           <span class="text-xs font-black text-slate-700 flex items-center gap-1.5"><i class="fa-solid fa-camera-retro text-brand-600"></i> 스캔 상태</span>
@@ -420,7 +420,7 @@
 
       if (data.activeModel) {
         const modelBadge = document.getElementById('headerModelBadge');
-        if (modelBadge) modelBadge.innerText = data.activeModel;
+        if (modelBadge) modelBadge.innerText = data.activeModel.replace(/^gemini-/i, '');
       }
 
       let rawShopOcr = data.shopOcr || '정보없음';

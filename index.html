@@ -460,7 +460,7 @@
         const aiNameEl = document.getElementById(`productAiName_${i}`);
         const item = products[i];
 
-        if (aiLabelEl) aiLabelEl.innerText = '제품명 [AI 복원중]';
+        if (aiLabelEl) aiLabelEl.textContent = '제품명 [AI 복원중]';
 
         try {
           const res = await fetch('/api/analyze', {
@@ -489,9 +489,9 @@
 
         if (aiNameEl) {
           const restored = (products[i].productAi || '').trim();
-          aiNameEl.innerText = (restored && restored !== '정보없음' && restored !== '미확인') ? restored : (products[i].productOcr || '');
+          aiNameEl.textContent = (restored && restored !== '정보없음' && restored !== '미확인') ? restored : (products[i].productOcr || '');
         }
-        if (aiLabelEl) aiLabelEl.innerText = '제품명 [AI 복원완료]';
+        if (aiLabelEl) aiLabelEl.textContent = '제품명 [AI 복원완료]';
       }
 
       if (sessionToken === activeSessionToken && scanBadge) {

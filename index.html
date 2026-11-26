@@ -263,14 +263,18 @@
       return (brand = brand.replace(/\s+/g, " ").trim()).length >= 2 ? brand : "";
     }
 
+    function stripUnwantedChars(raw) {
+      return (raw || '')
+        .replace(/^\((?:G|기획|행사|증정|냉동|냉장|특가)\)\s*/gi, '')
+        .replace(/\([^)]*$/g, '')
+        .replace(/[^가-힣a-zA-Z0-9\s.]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
     function buildRagSearchKeyword(item) {
       const rawOcr = (item.productOcr || item.productAi || "").trim();
-      const cleanOcr = rawOcr
-        .replace(/^[*\s]+/, "")
-        .replace(/^\((?:G|기획|행사|증정|냉동|냉장|특가)\)\s*/gi, "")
-        .replace(/\([^)]*$/g, "")
-        .replace(/\s+/g, " ")
-        .trim();
+      const cleanOcr = stripUnwantedChars(rawOcr);
 
       const itemCodeMatch = cleanOcr.match(/\b[A-Z0-9_-]{5,}\b/i);
       const itemCode = itemCodeMatch ? itemCodeMatch[0] : "";

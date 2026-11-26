@@ -3,6 +3,11 @@ export const maxDuration = 30;
 const TARGET_MODEL = 'gemini-3.6-flash';
 const SINGLE_ITEM_TIMEOUT_MS = 12000;
 
+const KNOWN_BRAND_OR_MAKER_REGEX =
+  /(?:CJ|백설|비비고|해찬들|농심|오뚜기|삼양|동원|오리온|롯데|해태|빙그레|매일|서울우유|남양|풀무원|사조|대상|청정원|광동|코카콜라|펩시|하이트|진로|카스|켈리|테라|소소한하루|피코크|노브랜드|다이소|올리브영)/i;
+
+const STORE_NEEDED_REGEX = /(?:PB|자체|매장|점포|정육|청과|야채|과일|생선|반찬|도시락|김밥|빵)/i;
+
 function buildOptimizedQuery(rawOcr, brandCtx) {
   const cleanKw = (rawOcr || '')
     .replace(/^[*\s]+/, '')
@@ -11,7 +16,14 @@ function buildOptimizedQuery(rawOcr, brandCtx) {
     .replace(/\s+/g, ' ')
     .trim();
 
-  if (brandCtx && brandCtx !== '없음' && cleanKw && !cleanKw.includes(brandCtx)) {
+  if (!cleanKw) return '';
+
+  const hasProductBrand = KNOWN_BRAND_OR_MAKER_REGEX.test(cleanKw);
+  const needsStoreContext =
+    STORE_NEEDED_REGEX.test(cleanKw) ||
+    cleanKw.replace(/[^가-힣a-zA-Z0-9]/g, '').length <= 3;
+
+  if (!hasProductBrand && needsStoreContext && brandCtx && brandCtx !== '없음' && !cleanKw.includes(brandCtx)) {
     return `${brandCtx} ${cleanKw}`.trim();
   }
   return cleanKw;

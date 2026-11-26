@@ -8,14 +8,17 @@ const KNOWN_BRAND_OR_MAKER_REGEX =
 
 const STORE_NEEDED_REGEX = /(?:PB|자체|매장|점포|정육|청과|야채|과일|생선|반찬|도시락|김밥|빵)/i;
 
-function buildOptimizedQuery(rawOcr, brandCtx) {
-  const cleanKw = (rawOcr || '')
-    .replace(/^[*\s]+/, '')
+function stripUnwantedChars(raw) {
+  return (raw || '')
     .replace(/^\((?:G|기획|행사|증정|냉동|냉장|특가)\)\s*/gi, '')
     .replace(/\([^)]*$/g, '')
+    .replace(/[^가-힣a-zA-Z0-9\s.]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
 
+function buildOptimizedQuery(rawOcr, brandCtx) {
+  const cleanKw = stripUnwantedChars(rawOcr);
   if (!cleanKw) return '';
 
   const hasProductBrand = KNOWN_BRAND_OR_MAKER_REGEX.test(cleanKw);
@@ -35,10 +38,7 @@ function isGroundedInSearchResult(ocr, candidateName) {
   }
   if (candidateName === ocr) return true;
 
-  const normalizedOcr = ocr
-    .replace(/^[*\s]+/, '')
-    .replace(/^\((?:G|기획|행사|증정|냉동|냉장|특가)\)\s*/gi, '')
-    .replace(/\([^)]*$/g, '')
+  const normalizedClean = stripUnwantedChars(ocr)
     .replace(/[^가-힣a-zA-Z0-9]/g, '')
     .toLowerCase();
 
@@ -46,11 +46,13 @@ function isGroundedInSearchResult(ocr, candidateName) {
     .replace(/[^가-힣a-zA-Z0-9]/g, '')
     .toLowerCase();
 
-  if (!normalizedOcr || !normalizedCandidate) return false;
+  if (!normalizedClean || !normalizedCandidate) return false;
 
-  const prefixLen = Math.min(normalizedOcr.length, 4);
+  if (normalizedCandidate.includes(normalizedClean)) return true;
+
+  const prefixLen = Math.min(normalizedClean.length, 4);
   for (let len = prefixLen; len >= 2; len--) {
-    const prefix = normalizedOcr.slice(0, len);
+    const prefix = normalizedClean.slice(0, len);
     if (normalizedCandidate.includes(prefix)) return true;
   }
 
@@ -61,17 +63,20 @@ async function searchSingleProduct(apiUrl, item, brandCtx) {
   const ocr = (item?.productOcr || '').trim();
   if (!ocr) return ocr;
 
+  const cleanKeyword = stripUnwantedChars(ocr);
   const queryKw = buildOptimizedQuery(ocr, brandCtx);
   const priceText = item?.totalPrice ? `${item.totalPrice}원` : '미상';
 
   const refinePrompt = `당신은 한국 유통·쇼핑몰 정식 제품명 매칭 전문가입니다.
-반드시 Google 검색 도구를 실행하여 네이버 가격비교, 11번가, SSG닷컴, 이마트몰 등 국내 쇼핑몰에 실제로 존재하는 상품명을 찾고 **쇼핑몰에 실제로 있는 정식 제품명을 최우선으로 매칭**하십시오.
+반드시 Google 검색 도구를 실행하여 네이버 가격비교, 11번가, SSG닷컴, 이마트몰 등 국내 쇼핑몰에 실제로 존재하는 상품명을 찾으십시오.
 
-[쇼핑몰 우선 매칭 규칙]
-1. 검색 결과에 쇼핑몰·가격비교 상품명이 확인되면, 원본 품명이 영수증 칸 제약으로 중간·끝부분이 잘렸거나 축약된 형태(예: '* 소소한하루 무농약 콩' -> '소소한하루 무농약 콩나물 200g')라도 쇼핑몰의 실제 정식 제품명을 우선 선택하십시오.
-2. 맨 앞의 '*' 같은 영수증 기호나 [특가], 무료배송, 1+1, 최저가 등 광고·부대 문구는 제거하고 실제 제품명만 출력하십시오.
-3. 검색 결과에서 관련 쇼핑몰 상품명을 전혀 찾지 못한 경우에만 원본제품명(${ocr})을 그대로 출력하십시오.
-4. 설명, 번호, 따옴표, 줄바꿈 없이 오직 최종 제품명 한 줄만 출력하십시오.`;
+[발췌 및 매칭 규칙]
+1. 불필요한 특수문자가 제거된 정제제품명("${cleanKeyword}") 전체를 포함하는 쇼핑몰·가격비교 상품명이 검색 결과에 있으면 해당 정식 상품명을 최우선으로 발췌하십시오.
+2. 전체 포함 상품명이 없더라도, 앞부분 핵심 단어와 끝부분 절단 음절(예: '로' -> '로즈마리', '생' -> '생강', '콩' -> '콩나물')이 이어지는 실제 쇼핑몰 상품명이 확인되면 해당 정식 상품명을 선택하십시오.
+3. 용량(예: 800ml) 표기가 약간 다르더라도 실제 쇼핑몰의 정식 제품명이 명확하면 용량 차이 때문에 발췌를 포기하지 마십시오.
+4. [특가], 무료배송, 1+1, 최저가, 판매처 등 판촉·부가 문구는 제거하고 실제 제품명만 출력하십시오.
+5. 검색 결과에서 일치하는 상품명을 전혀 찾지 못한 경우에만 원본제품명(${ocr})을 그대로 출력하십시오.
+6. 설명, 번호, 따옴표, 줄바꿈 없이 오직 최종 제품명 한 줄만 출력하십시오.`;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), SINGLE_ITEM_TIMEOUT_MS);
@@ -90,7 +95,7 @@ async function searchSingleProduct(apiUrl, item, brandCtx) {
         },
         contents: [{
           parts: [{
-            text: `원본제품명="${ocr}" | 조합검색어="${queryKw}" | 가격=${priceText}`
+            text: `원본제품명="${ocr}" | 정제제품명="${cleanKeyword}" | 조합검색어="${queryKw}" | 가격=${priceText}`
           }]
         }]
       })
@@ -150,7 +155,7 @@ export default async function handler(req, res) {
 SHOP: 상호명[OCR] | 상호명[AI복원] | 일자(YYYY-MM-DD, 시간 제외) | 주소
 ITEM: 원본제품명 | 단가곱하기수량의합 | 할인액 | 품목종속할인명(없으면 '없음') | 최종금액
 ETC: 항목명 | 부호를포함한금액
-TOTAL: 인쇄된_최종결제총액
+TOTAL: 앱산출_최종결제총액
 
 [상호명 규칙]
 1. 상호명[OCR]: 식별 가능한 경우만 표기, 없으면 '정보없음'.

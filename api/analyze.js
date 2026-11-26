@@ -1,5 +1,6 @@
 const maxDuration = 30;
-const TARGET_MODEL = 'gemini-3.6-flash';
+// 영수증의 흐릿한 글자 판독과 고도의 추론(정밀 품명 매칭)을 위해 가장 뛰어난 Pro 모델 사용
+const TARGET_MODEL = 'gemini-3.6-pro';
 
 async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: '잘못된 접근입니다.' });
@@ -15,7 +16,7 @@ async function handler(req, res) {
 
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${TARGET_MODEL}:generateContent?key=${apiKey}`;
 
-    const systemPrompt = `전문 분석기입니다. JSON을 절대 출력하지 마십시오. 오직 아래의 허용된 항목 규칙에 맞춰서만 출력하십시오. 
+    const systemPrompt = `전문 분석기입니다. JSON을 절대 출력하지 마십시오. 오직 아래의 허용된 항목 규칙에 맞춰서만 출력하십시오.
 
 [데이터 수집 원칙 (화이트리스트)]
 - 영수증에서 오직 가계지출 분석에 필요한 '날짜, 상호명, 주소, 품목명, 단가, 수량, 할인, 결제총액' 데이터만 추출하십시오.
@@ -24,18 +25,18 @@ async function handler(req, res) {
 [가장 중요한 규칙 1: 전체 출력 보장]
 - 긴 영수증이라도 중간에 임의로 생략하거나 멈추지 말고, 영수증에 인쇄된 모든 품목과 마지막 TOTAL 라인까지 누락 없이 100% 전부 출력하십시오. 토큰 제한으로 중간에 끊기는 일이 절대 없도록 하십시오.
 
-[가장 중요한 규칙 2: 품명 정밀 복원 및 잘림 판별 원칙]
-1. 잘림 판별 기준: 
-   - 영수증 텍스트가 의미가 완결되지 않은 채 음절이나 글자 중간(예: 받침, 모음 등)에서 끊기거나, 유통사 정식 품명과 비교했을 때 우측 인쇄 한계 등으로 뒷부분이 누락된 것으로 판단되는 경우 '잘린 품목'으로 규정합니다.
-2. 정상 케이스 (안 잘린 경우): 
-   - 글자가 온전하게 인쇄된 경우, 원본 텍스트를 절대 변형하거나 축약하지 말고 영수증에 인쇄된 원본 텍스트와 정식 풀네임을 그대로 유지하십시오.
-3. 예외 케이스 (잘린 경우 및 확장 필요 시): 
-   - 핫도그 바나 로제 등 검색 결과의 블로그/카페 후기 본문에 나오는 임의의 수식어구를 억지로 조합하여 지어내지 마십시오.
-   - 반드시 네이버 검색 결과 중 **[쇼핑 상품명]** 또는 상품 타이틀 영역에 명시된 **가장 구체적인 완성형 풀네임(예: '아리 모던누들 고추장버터컵')**을 최우선으로 채택하여 복원하십시오.
+[가장 중요한 규칙 2: 품명 및 상호명 정밀 복원 및 잘림 판별 원칙]
+1. 잘림 및 오독 판별 기준:
+   - 영수증 텍스트가 의미가 완결되지 않은 채 음절이나 글자 중간에서 끊겼거나, 인쇄 제한으로 뒷부분이 누락된 경우 '잘린 품목'으로 판별하십시오.
+   - 글자가 흐릿하거나 인쇄 불량으로 오독하기 쉬운 경우(예: '피코크 오징어먹물 빠'를 '피코크 오징어먹물 바'로 읽은 경우), 오독된 단어('바')에 갇혀 지레짐작으로 엉뚱한 제품('바게트')을 복원하지 마십시오. 반드시 실제 브랜드명, 앞 키워드('피코크 오징어먹물'), 가격('6,980원')의 맥락을 결합해 분석하십시오.
+
+2. 실제 판매되는 명확한 제품명 최우선 매칭 (핵심 원칙):
+   - '네이버 쇼핑 가격비교', 'SSG닷컴', '이마트몰' 등 국내 주요 쇼핑 플랫폼에 정확히 존재하는 실제 상품명(예: '피코크 오징어먹물 빠에야 500g')이 검색되거나 존재할 경우, 이 완벽한 실제 명칭을 최우선 채택하여 복원하십시오. 
+   - 가상의 수식어나 오인하기 쉬운 다른 상품군(예: 바게트 등)보다, 실존하는 브랜드 매칭 상품을 절대적인 우선순위로 매칭해야 합니다.
 
 [출력 양식]
 SHOP: 상호명[OCR] | 상호명[AI복원] | 일자(날짜만 YYYY-MM-DD 형태로 추출, 시간 제외) | 주소 | 상호명발췌근거 | 검색용대표브랜드명
-ITEM: 원본제품명 | 정밀복원제품명(잘림 판별 원칙에 따라 정상은 원본 유지, 잘린 경우 쇼핑 상품명 타이틀의 정식 풀네임으로 정밀 확장) | 단가곱하기수량의합 | 할인액 | 품목종속할인명(없으면 '없음') | 최종금액
+ITEM: 원본제품명 | 정밀복원제품명(실제 온라인 쇼핑몰 검색 기반 최우선 정식 품명) | 단가곱하기수량의합 | 할인액 | 품목종속할인명(없으면 '없음') | 최종금액
 ETC: 항목명 | 부호를포함한금액
 TOTAL: 인쇄된_최종결제총액
 
@@ -54,7 +55,11 @@ TOTAL: 인쇄된_최종결제총액
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         system_instruction: { parts: [{ text: systemPrompt }] },
-        generationConfig: { max_output_tokens: 65536 },
+        generationConfig: { 
+          max_output_tokens: 65536,
+          // 긴 영수증의 미세 글자를 뭉개짐 없이 정밀하게 판독하기 위해 화질을 상향하여 API 호출
+          mediaResolution: "MEDIA_RESOLUTION_HIGH" 
+        },
         contents: [{ parts: [{ text: "모든 품목을 누락 없이 정밀 분석하여 출력하십시오." }, { inline_data: { mime_type: "image/jpeg", data: imageBase64 } }] }]
       })
     });
@@ -87,56 +92,4 @@ TOTAL: 인쇄된_최종결제총액
       if (trimmed.startsWith('SHOP:')) {
         const parts = trimmed.substring(5).split('|').map(cleanStr);
         let rawShopOcr = parts[0] || '정보없음', isOcrValid = !(rawShopOcr.includes('미확인') || rawShopOcr.includes('정보없음') || rawShopOcr.length < 2);
-        resultData.shopOcr = isOcrValid ? rawShopOcr : '정보없음';
-        if (!isOcrValid && parts[1] && !parts[1].includes('정보없음') && parts[1].length >= 2) {
-          resultData.shopName = parts[1]; resultData.shopConfidence = 'estimated'; resultData.shopReason = parts[4] || '';
-        } else {
-          resultData.shopName = isOcrValid ? rawShopOcr : '정보없음'; resultData.shopConfidence = isOcrValid ? 'official' : 'none';
-        }
-        resultData.date = parts[2] || '미확인'; 
-        resultData.address = parts[3] || '정보없음';
-        resultData.searchBrand = (parts[5] && parts[5] !== '없음' && !parts[5].includes('정보없음')) ? parts[5] : '';
-      } else if (trimmed.startsWith('ITEM:')) {
-        const parts = trimmed.substring(5).split('|').map(cleanStr);
-        if (parts[0] && !isExcluded(parts[0])) {
-          resultData.products.push({
-            productOcr: parts[0],
-            productAi: parts[1] || parts[0],
-            totalPrice: cleanNum(parts[2], '0'),
-            discount: cleanNum(parts[3], '0'),
-            discountName: (parts.length >= 6 && parts[4] !== '없음') ? parts[4] : '',
-            finalPrice: parts.length >= 6 ? cleanNum(parts[5], cleanNum(parts[2], '0')) : cleanNum(parts[4], cleanNum(parts[2], '0'))
-          });
-        }
-      } else if (trimmed.startsWith('TOTAL:')) {
-        resultData.receiptTotal = Number(cleanNum(trimmed.substring(6), '0'));
-      } else if (trimmed.startsWith('ETC:')) {
-        const parts = trimmed.substring(4).split('|').map(cleanStr);
-        let name = parts[0].replace(/^[*\s]+/, '') || '전체 할인/추가';
-        if (!isExcluded(name)) {
-          let amt = Number(cleanNum(parts[1] || '0', '0'));
-          if (amt > 0) resultData.overallElements.push({ name, amount: (parts[1].includes('-') || /할인|DC|차감|쿠폰|마이너스/i.test(name)) ? `-${amt}` : String(amt) });
-        }
-      }
-    }
-
-    const sumProductsFinal = resultData.products.reduce((acc, p) => acc + Number(p.finalPrice), 0);
-    const sumOverallEtc = resultData.overallElements.reduce((acc, el) => acc + Number(el.amount), 0);
-    const calculatedTotal = sumProductsFinal + sumOverallEtc;
-
-    if (resultData.receiptTotal > 0) {
-      const discrepancy = resultData.receiptTotal - calculatedTotal;
-      if (discrepancy !== 0) {
-        resultData.verificationStatus = 'DISCREPANCY_AUTO_CORRECTED';
-        resultData.overallElements.push({ name: "오류 보정액", amount: String(discrepancy) });
-      }
-    }
-
-    return res.status(200).json(resultData);
-  } catch (error) {
-    return res.status(500).json({ error: error.message || '서버 내부 오류가 발생했습니다.' });
-  }
-}
-
-module.exports = handler;
-module.exports.maxDuration = maxDuration;
+        resultData.shopOcr = isOcrValid ? rawShopOcr : '정보

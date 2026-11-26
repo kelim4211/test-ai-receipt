@@ -456,11 +456,11 @@
           scanBadge.className = 'text-[11px] bg-indigo-50 text-indigo-700 border border-indigo-300 font-extrabold px-2.5 py-0.5 rounded-full';
         }
 
+        const aiLabelEl = document.getElementById(`productAiLabel_${i}`);
         const aiNameEl = document.getElementById(`productAiName_${i}`);
         const item = products[i];
-        if (aiNameEl) {
-          aiNameEl.innerHTML = `${item.productOcr || ''} <span class="text-[11px] font-bold text-indigo-600 ml-1"><i class="fa-solid fa-spinner fa-spin"></i> 복원 중</span>`;
-        }
+
+        if (aiLabelEl) aiLabelEl.innerText = '제품명 [AI 복원중]';
 
         try {
           const res = await fetch('/api/analyze', {
@@ -491,6 +491,7 @@
           const restored = (products[i].productAi || '').trim();
           aiNameEl.innerText = (restored && restored !== '정보없음' && restored !== '미확인') ? restored : (products[i].productOcr || '');
         }
+        if (aiLabelEl) aiLabelEl.innerText = '제품명 [AI 복원완료]';
       }
 
       if (sessionToken === activeSessionToken && scanBadge) {
@@ -572,7 +573,7 @@
             </button>
           </div>
           <div class="bg-slate-50 p-2 rounded-xl border border-slate-100">
-            <span class="text-[10px] text-brand-600 font-bold">제품명 [AI 복원]</span>
+            <span id="productAiLabel_${index}" class="text-[10px] text-brand-600 font-bold">제품명 [AI 복원]</span>
             <p id="productAiName_${index}" class="font-black text-slate-900 text-sm">${initialName}</p>
           </div>
           <div class="grid grid-cols-3 gap-1 text-center bg-white p-2 rounded-lg border border-slate-200">

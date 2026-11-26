@@ -1,5 +1,5 @@
 const maxDuration = 30;
-const TARGET_MODEL = 'gemini-3.8-flash';
+const TARGET_MODEL = 'gemini-3.6-flash';
 
 async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: '잘못된 접근입니다.' });

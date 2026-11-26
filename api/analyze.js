@@ -129,7 +129,7 @@ TOTAL: 인쇄된_최종결제총액
       const discrepancy = resultData.receiptTotal - calculatedTotal;
       if (discrepancy !== 0) {
         resultData.verificationStatus = 'DISCREPANCY_AUTO_CORRECTED';
-        resultData.overallElements.push({ name: discrepancy < 0 ? "누락 할인 보정" : "누락 추가 요금 보정", amount: String(discrepancy) });
+        resultData.overallElements.push({ name: "오류 보정액", amount: String(discrepancy) });
       }
     }
 
@@ -138,3 +138,4 @@ TOTAL: 인쇄된_최종결제총액
     return res.status(500).json({ error: error.message || '서버 내부 오류가 발생했습니다.' });
   }
 }
+```[cite: 3, 4]

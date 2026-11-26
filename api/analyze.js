@@ -1,8 +1,7 @@
-export const maxDuration = 30;
-
+const maxDuration = 30;
 const TARGET_MODEL = 'gemini-3.8-flash';
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: '잘못된 접근입니다.' });
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
 
@@ -138,6 +137,8 @@ TOTAL: 인쇄된_최종결제총액
     return res.status(500).json({ error: error.message || '서버 내부 오류가 발생했습니다.' });
   }
 }
+
+module.exports = handler;
+module.exports.maxDuration = maxDuration;
 ```[cite: 4]
 
-적용해 보시고 또 다른 동작이나 화면 관련해서 다듬을 점이 있으면 알려주세요.

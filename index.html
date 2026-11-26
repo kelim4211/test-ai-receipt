@@ -198,13 +198,13 @@
   </div>
 
   <script>
-    const ADMIN_SECRET_PREFIX = "202611123456"; 
+    const ADMIN_SECRET_PREFIX = "202611123456";
 
     let currentShopAddress = "", currentShopName = "", currentSearchBrand = "", activeReceiptBase64 = null, cropperInstance = null, currentSelectedSource = "", syncBoxRatio = null;
 
-    window.onload = function() { 
+    window.onload = function() {
       checkAuthSession();
-      clearAnalysisResidue(); 
+      clearAnalysisResidue();
       const modal = document.getElementById('cropperModal');
       if (modal) modal.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
     };
@@ -254,11 +254,37 @@
       return (brand = brand.replace(/\s+/g, " ").trim()).length >= 2 ? brand : "";
     }
 
-    function getSmartSearchURL(queryStr, brandName = "") {
-      const queryText = (queryStr || "").trim();
+    function buildRagSearchKeyword(item, brandName = "") {
+      const rawOcr = (item.productOcr || item.productAi || "").trim();
+      const cleanOcr = rawOcr
+        .replace(/^[*\s]+/, "")
+        .replace(/^\((?:G|기획|행사|증정|냉동|냉장|특가)\)\s*/gi, "")
+        .replace(/\([^)]*$/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      const itemCodeMatch = cleanOcr.match(/\b[A-Z0-9_-]{5,}\b/i);
+      const itemCode = itemCodeMatch ? itemCodeMatch[0] : "";
       const cleanBrand = extractPureBrand(brandName) || extractPureBrand(currentSearchBrand) || extractPureBrand(currentShopName);
-      let fullQuery = (cleanBrand && cleanBrand !== '없음') ? `${cleanBrand} ${queryText}` : queryText;
-      return `https://search.naver.com/search.naver?query=${encodeURIComponent(fullQuery.replace(/\s+/g, " ").trim())}`;
+
+      const parts = [];
+      if (cleanBrand && cleanBrand !== '없음' && !cleanOcr.includes(cleanBrand)) parts.push(cleanBrand);
+      if (cleanOcr) parts.push(cleanOcr);
+      if (itemCode && !cleanOcr.includes(itemCode)) parts.push(itemCode);
+
+      return parts.join(" ").replace(/\s+/g, " ").trim();
+    }
+
+    function getSmartSearchURL(item, brandName = "") {
+      const query = buildRagSearchKeyword(item, brandName);
+      return `https://search.naver.com/search.naver?query=${encodeURIComponent(query)}`;
+    }
+
+    function resolveRagRestoredProductName(item) {
+      const restored = (item.productAi || "").trim();
+      const ocr = (item.productOcr || "").trim();
+      if (restored && restored !== "정보없음" && restored !== "미확인") return restored;
+      return ocr;
     }
 
     function purgeImageMemory() {
@@ -372,7 +398,7 @@
       currentShopName = ""; currentShopAddress = ""; currentSearchBrand = "";
       const scanBadge = document.getElementById('scanStatusBadge');
       if(scanBadge) { scanBadge.innerText = '● 정밀 분석 중...'; scanBadge.className = 'text-[11px] bg-blue-50 text-blue-700 border border-blue-300 font-extrabold px-2.5 py-0.5 rounded-full'; }
-      
+
       ['part1ShopOcr', 'part1ShopName'].forEach(id => document.getElementById(id).innerText = '정보없음');
       document.getElementById('part1Date').innerText = '-';
       document.getElementById('part1Address').innerText = '정보없음';
@@ -423,16 +449,16 @@
         if (modelBadge) modelBadge.innerText = data.activeModel.replace(/^gemini-/i, '');
       }
 
-      let rawShopOcr = data.shopOcr || '정보없음';
+      const rawShopOcr = data.shopOcr || '정보없음';
       setTxt('part1ShopOcr', (rawShopOcr.includes('미확인') || rawShopOcr.includes('정보없음') || rawShopOcr.length < 2) ? '정보없음' : rawShopOcr);
 
-      let rawShopName = data.shopName || '정보없음';
+      const rawShopName = data.shopName || '정보없음';
       currentShopName = rawShopName.replace(/\s*\(추정\)|AI 추정|\(추정\)/g, "").trim();
       if (currentShopName.includes('미확인') || currentShopName.length < 2) currentShopName = '정보없음';
       setTxt('part1ShopName', currentShopName);
 
       currentSearchBrand = (data.searchBrand || '').trim();
-      let rawDate = data.date || '-';
+      const rawDate = data.date || '-';
       setTxt('part1Date', (rawDate !== '-' && rawDate !== '미확인') ? rawDate.split(' ')[0] : '-');
 
       const badgeContainer = document.getElementById('shopStatusBadgeContainer'), reasonContainer = document.getElementById('shopReasonContainer');
@@ -458,21 +484,22 @@
       const cardListContainer = document.getElementById('productCardList');
       if(!cardListContainer) return;
       cardListContainer.innerHTML = '';
-      
+
       let totalOriginalSum = 0, totalProductDiscountSum = 0, totalCalculatedProductsAmount = 0;
       const fragment = document.createDocumentFragment();
 
       products.forEach((item, index) => {
-        let originalPrice = toFastNumber(item.totalPrice || item.finalPrice);
-        let numDisc = toFastNumber(item.discount);
-        let finalPrice = toFastNumber(item.finalPrice || (originalPrice - numDisc));
-        
+        const originalPrice = toFastNumber(item.totalPrice || item.finalPrice);
+        const numDisc = toFastNumber(item.discount);
+        const finalPrice = toFastNumber(item.finalPrice || (originalPrice - numDisc));
+
         totalOriginalSum += originalPrice;
         totalProductDiscountSum += numDisc;
         totalCalculatedProductsAmount += finalPrice;
 
-        const searchURL = getSmartSearchURL(item.productAi || item.productOcr, currentSearchBrand);
-        let discountDisplay = `<span class="font-black text-sm text-rose-600">-${numDisc.toLocaleString()}</span>`;
+        const restoredProductName = resolveRagRestoredProductName(item);
+        const searchURL = getSmartSearchURL(item, currentSearchBrand);
+        const discountDisplay = `<span class="font-black text-sm text-rose-600">-${numDisc.toLocaleString()}</span>`;
 
         const card = document.createElement('div');
         card.className = "bg-white border-2 border-slate-200 rounded-2xl p-3.5 space-y-3 shadow-sm text-xs";
@@ -488,7 +515,7 @@
           </div>
           <div class="bg-slate-50 p-2 rounded-xl border border-slate-100">
             <span class="text-[10px] text-brand-600 font-bold">제품명 [AI 복원]</span>
-            <p class="font-black text-slate-900 text-sm">${item.productAi || item.productOcr || ''}</p>
+            <p class="font-black text-slate-900 text-sm">${restoredProductName}</p>
           </div>
           <div class="grid grid-cols-3 gap-1 text-center bg-white p-2 rounded-lg border border-slate-200">
             <div class="flex flex-col justify-center"><span class="text-[9px] text-slate-500 block">단가*수량</span><span class="font-black text-sm text-slate-900">${originalPrice.toLocaleString()}</span></div>
@@ -505,15 +532,15 @@
       if(summaryContainer) {
         let summaryHTML = `<div class="flex justify-between font-bold"><span>품목 정가 합계</span><span>${totalOriginalSum.toLocaleString()}원</span></div>`;
         if (totalProductDiscountSum > 0) summaryHTML += `<div class="flex justify-between font-bold text-rose-600"><span>└ 품목 할인 총액</span><span>-${totalProductDiscountSum.toLocaleString()}원</span></div>`;
-        
+
         if (overallElements.length === 0) {
-           summaryHTML += `<div class="flex justify-between font-bold text-slate-500"><span>└ 전체 할인</span><span>0원</span></div>`;
+          summaryHTML += `<div class="flex justify-between font-bold text-slate-500"><span>└ 전체 할인</span><span>0원</span></div>`;
         } else {
-            overallElements.forEach(el => {
-              let amtVal = Number(el.amount || 0);
-              if (amtVal < 0) summaryHTML += `<div class="flex justify-between font-bold text-rose-600"><span>└ ${el.name}</span><span>${amtVal.toLocaleString()}원</span></div>`;
-              else summaryHTML += `<div class="flex justify-between font-bold text-amber-700"><span>└ ${el.name}</span><span>+${amtVal.toLocaleString()}원</span></div>`;
-            });
+          overallElements.forEach(el => {
+            const amtVal = Number(el.amount || 0);
+            if (amtVal < 0) summaryHTML += `<div class="flex justify-between font-bold text-rose-600"><span>└ ${el.name}</span><span>${amtVal.toLocaleString()}원</span></div>`;
+            else summaryHTML += `<div class="flex justify-between font-bold text-amber-700"><span>└ ${el.name}</span><span>+${amtVal.toLocaleString()}원</span></div>`;
+          });
         }
         summaryContainer.innerHTML = summaryHTML;
 
@@ -524,10 +551,11 @@
       document.getElementById('receiptSummarySection').classList.remove('hidden');
     }
 
-    function openMapSearchPopup() { 
+    function openMapSearchPopup() {
       if (!currentShopAddress || currentShopAddress.includes("정보없음")) return;
-      let rawAddr = currentShopAddress.trim().replace(/\([^)]*\)/g, "").replace(/(지하)?\d+[층층상가]\s*(\d+[호호])?/g, "").replace(/\b\d+호\b/g, "");
-      let addressParts = rawAddr.trim().split(/\s+/), cutoffIndex = -1;
+      const rawAddr = currentShopAddress.trim().replace(/\([^)]*\)/g, "").replace(/(지하)?\d+[층층상가]\s*(\d+[호호])?/g, "").replace(/\b\d+호\b/g, "");
+      const addressParts = rawAddr.trim().split(/\s+/);
+      let cutoffIndex = -1;
       for (let i = 0; i < addressParts.length; i++) {
         if (addressParts[i].endsWith('로') || addressParts[i].endsWith('길')) {
           cutoffIndex = i;
@@ -535,14 +563,13 @@
           break;
         }
       }
-      let shortAddress = cutoffIndex !== -1 ? addressParts.slice(0, cutoffIndex + 1).join(" ") : addressParts.slice(0, 5).join(" ");
-      let cleanShopName = (currentShopName && !currentShopName.includes("정보없음")) ? currentShopName.replace(/\(주\)|\(유\)|\(사\)/g, "").replace(/주식회사|유한회사|사단법인|AI 추정/g, "").trim() : "";
+      const shortAddress = cutoffIndex !== -1 ? addressParts.slice(0, cutoffIndex + 1).join(" ") : addressParts.slice(0, 5).join(" ");
+      const cleanShopName = (currentShopName && !currentShopName.includes("정보없음")) ? currentShopName.replace(/\(주\)|\(유\)|\(사\)/g, "").replace(/주식회사|유한회사|사단법인|AI 추정/g, "").trim() : "";
       openCompactPopup(`https://search.naver.com/search.naver?query=${encodeURIComponent(`${cleanShopName} ${shortAddress}`.replace(/\s+/g, " ").trim())}`);
     }
-    
+
     function resetSystem() { clearAnalysisResidue(); }
     function scrollToTop() { window.scrollTo({ top: 0, behavior: 'smooth' }); }
   </script>
 </body>
 </html>
-```[cite: 36]

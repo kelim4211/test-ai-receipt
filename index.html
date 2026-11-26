@@ -386,6 +386,10 @@
       syncBoxRatio = null;
     }
 
+    function waitNextPaint() {
+      return new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 60)));
+    }
+
     async function startReceiptAnalysis() {
       if (!activeReceiptBase64) { alert('사진을 먼저 첨부해 주세요.'); return; }
       const sessionToken = ++activeSessionToken;
@@ -423,7 +427,9 @@
         if(scannerLine) scannerLine.classList.add('hidden');
 
         renderAnalysisUI(result);
+        await waitNextPaint();
 
+        if (sessionToken !== activeSessionToken) return;
         if (Array.isArray(result.products) && result.products.length > 0) {
           refineAllProductsSequentially(result.products, sessionToken);
         }
@@ -450,7 +456,12 @@
           scanBadge.className = 'text-[11px] bg-indigo-50 text-indigo-700 border border-indigo-300 font-extrabold px-2.5 py-0.5 rounded-full';
         }
 
+        const aiNameEl = document.getElementById(`productAiName_${i}`);
         const item = products[i];
+        if (aiNameEl) {
+          aiNameEl.innerHTML = `${item.productOcr || ''} <span class="text-[11px] font-bold text-indigo-600 ml-1"><i class="fa-solid fa-spinner fa-spin"></i> 복원 중</span>`;
+        }
+
         try {
           const res = await fetch('/api/analyze', {
             method: 'POST',
@@ -470,15 +481,15 @@
             const refineData = await res.json();
             if (refineData && refineData.productAi) {
               products[i].productAi = refineData.productAi;
-              const aiNameEl = document.getElementById(`productAiName_${i}`);
-              if (aiNameEl) {
-                const restored = (products[i].productAi || '').trim();
-                aiNameEl.innerText = (restored && restored !== '정보없음' && restored !== '미확인') ? restored : (products[i].productOcr || '');
-              }
             }
           }
         } catch (err) {
           // 단일 품목 검색 실패 시 원본 유지 후 다음 품목 계속 진행
+        }
+
+        if (aiNameEl) {
+          const restored = (products[i].productAi || '').trim();
+          aiNameEl.innerText = (restored && restored !== '정보없음' && restored !== '미확인') ? restored : (products[i].productOcr || '');
         }
       }
 
@@ -546,8 +557,7 @@
         totalProductDiscountSum += numDisc;
         totalCalculatedProductsAmount += finalPrice;
 
-        const restored = (item.productAi || '').trim();
-        const restoredProductName = (restored && restored !== '정보없음' && restored !== '미확인') ? restored : (item.productOcr || '');
+        const initialName = (item.productOcr || '').trim();
 
         const card = document.createElement('div');
         card.className = "bg-white border-2 border-slate-200 rounded-2xl p-3.5 space-y-3 shadow-sm text-xs";
@@ -555,7 +565,7 @@
           <div class="flex items-center justify-between border-b border-slate-100 pb-2 gap-2">
             <div class="flex items-center gap-1.5 min-w-0 flex-1">
               <span class="font-bold text-slate-700">품목 ${index + 1}</span>
-              <span class="text-slate-500 truncate">${item.productOcr || ''}</span>
+              <span class="text-slate-500 truncate">${initialName}</span>
             </div>
             <button type="button" class="search-action-btn bg-brand-50 hover:bg-brand-100 text-brand-700 border border-brand-200 text-[11px] font-black py-1.5 px-3 rounded-xl flex items-center gap-1.5 shadow-xs transition active:scale-95 shrink-0">
               <i class="fa-solid fa-magnifying-glass text-brand-600"></i> 제품검색
@@ -563,7 +573,7 @@
           </div>
           <div class="bg-slate-50 p-2 rounded-xl border border-slate-100">
             <span class="text-[10px] text-brand-600 font-bold">제품명 [AI 복원]</span>
-            <p id="productAiName_${index}" class="font-black text-slate-900 text-sm">${restoredProductName}</p>
+            <p id="productAiName_${index}" class="font-black text-slate-900 text-sm">${initialName}</p>
           </div>
           <div class="grid grid-cols-3 gap-1 text-center bg-white p-2 rounded-lg border border-slate-200">
             <div class="flex flex-col justify-center"><span class="text-[9px] text-slate-500 block">단가*수량</span><span class="font-black text-sm text-slate-900">${originalPrice.toLocaleString()}</span></div>

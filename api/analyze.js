@@ -17,6 +17,35 @@ function buildOptimizedQuery(rawOcr, brandCtx) {
   return cleanKw;
 }
 
+function isGroundedInSearchResult(ocr, candidateName) {
+  if (!candidateName || candidateName.length < 2 || candidateName.length > 80) {
+    return false;
+  }
+  if (candidateName === ocr) return true;
+
+  const normalizedOcr = ocr
+    .replace(/^[*\s]+/, '')
+    .replace(/^\((?:G|기획|행사|증정|냉동|냉장|특가)\)\s*/gi, '')
+    .replace(/\([^)]*$/g, '')
+    .replace(/[^가-힣a-zA-Z0-9]/g, '')
+    .toLowerCase();
+
+  const normalizedCandidate = candidateName
+    .replace(/[^가-힣a-zA-Z0-9]/g, '')
+    .toLowerCase();
+
+  if (!normalizedOcr || !normalizedCandidate) return false;
+
+  // 원본의 핵심 글자(2음절 이상 조각) 중 최소 하나라도 복원명에 남아 있는지 확인
+  const chunks = [];
+  for (let i = 0; i <= normalizedOcr.length - 2; i++) {
+    chunks.push(normalizedOcr.slice(i, i + 2));
+  }
+  if (chunks.length === 0) return normalizedCandidate.includes(normalizedOcr);
+
+  return chunks.some((chunk) => normalizedCandidate.includes(chunk));
+}
+
 async function searchSingleProduct(apiUrl, item, brandCtx) {
   const ocr = (item?.productOcr || '').trim();
   if (!ocr) return ocr;
@@ -24,15 +53,14 @@ async function searchSingleProduct(apiUrl, item, brandCtx) {
   const queryKw = buildOptimizedQuery(ocr, brandCtx);
   const priceText = item?.totalPrice ? `${item.totalPrice}원` : '미상';
 
-  const refinePrompt = `당신은 한국 유통·쇼핑몰 정식 제품명 매칭 전문가입니다.
-제공된 '조합검색어'로 Google 검색 도구를 실행하여 네이버 가격비교, SSG닷컴, 이마트몰 등 국내 쇼핑몰에 실제로 존재하는 정식 제품명을 찾고 가장 일치도가 높은 제품명 1개만 선택하십시오.
+  const refinePrompt = `당신은 Google 검색 결과 근거에만 기반해 한국 유통·쇼핑몰 정식 제품명을 대조하는 엄격한 매칭기입니다.
+반드시 Google 검색 도구를 실행하고, **검색 결과 텍스트에 실제로 확인된 상품명**만 근거로 판단하십시오.
 
-[매칭 및 복원 원칙]
-1. 검색엔진이 임의로 보정해 주는 단순 대표 명사로 무조건 축약하거나 멈추지 말고, 원본 단어·브랜드·가격 맥락과 일치하는 가장 구체적이고 온전한 실존 정식 제품명(예: '비엔' -> '그릴비엔나', '고추장' -> '고추장버터', '빠' -> '빠에야')을 우선 선택하십시오.
-2. 글자 오독이나 중간 축약이 있더라도 원본과 가격을 대조해 실제 판매 상품명으로 교정하십시오.
-3. 품번이 식별되면 제품 식별 단서로 활용하되, [특가], 무료배송, 1+1, 오늘출발 등 광고 문구는 제거하고 순수 정식 제품명만 출력하십시오.
-4. 검색 결과에서 더 명확한 실존 제품명을 찾지 못하면 원본 제품명(${ocr})을 그대로 출력하십시오.
-5. 설명, 번호, 따옴표, 줄바꿈 없이 오직 최종 확정된 제품명 한 줄만 출력하십시오.`;
+[엄격한 검색 근거 규칙]
+1. 검색 결과에 실제로 나타난 상품명 표현만을 근거로 채택하십시오. 검색 결과에 없는 단어나 추측성 수식어·용량·맛 설명을 임의로 지어내거나 덧붙이지 마십시오.
+2. 검색 결과에서 '조합검색어' 및 '원본제품명'과 일치하는 실존 상품명이 명확히 확인되지 않으면, 절대 추측해 바꾸지 말고 원본제품명(${ocr})을 그대로 출력하십시오.
+3. 검색 결과에 실존 상품명이 확인되더라도 [특가], 무료배송, 1+1, 오늘출발, 행사기간 등 판촉 문구는 제외하고 검색 결과에 기재된 실제 상품명만 남기십시오.
+4. 설명, 번호, 따옴표, 줄바꿈 없이 오직 최종 제품명 한 줄만 출력하십시오.`;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), SINGLE_ITEM_TIMEOUT_MS);
@@ -66,7 +94,7 @@ async function searchSingleProduct(apiUrl, item, brandCtx) {
       .replace(/^(정식\s*제품명|제품명|결과)\s*[:：]\s*/i, '')
       .trim();
 
-    if (!cleaned || cleaned.length < 2 || cleaned.length > 80) return ocr;
+    if (!isGroundedInSearchResult(ocr, cleaned)) return ocr;
     return cleaned;
   } catch (e) {
     return ocr;
@@ -95,7 +123,7 @@ export default async function handler(req, res) {
     if (!image) return res.status(400).json({ error: '이미지 데이터가 없습니다.' });
     const imageBase64 = image.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, '');
 
-    const step1Prompt = `전문 영수증 판독기입니다. JSON이나 마크다운 코드블록을 절대 출력하지 마십시오. 오직 아래 규칙에 맞춰 출력하십시오.
+    const step1Prompt = `순수 영수증 글자 판독기(OCR)입니다. JSON이나 마크다운 코드블록을 절대 출력하지 마십시오. 오직 아래 규칙에 맞춰 출력하십시오.
 
 [데이터 수집 원칙 (화이트리스트)]
 - 영수증에서 오직 가계지출 분석에 필요한 '날짜, 상호명, 주소, 품목명, 단가, 수량, 할인, 결제총액' 데이터만 추출하십시오.
@@ -104,8 +132,8 @@ export default async function handler(req, res) {
 [가장 중요한 규칙 1: 전체 출력 보장]
 - 긴 영수증이라도 중간에 임의로 생략하거나 멈추지 말고, 영수증에 인쇄된 모든 품목과 마지막 TOTAL 라인까지 누락 없이 100% 전부 출력하십시오.
 
-[가장 중요한 규칙 2: 원문 충실 판독]
-- 영수증에 인쇄된 원본제품명(품번·규격·잘린 글자 포함)을 임의로 바꾸거나 추측하지 말고 있는 그대로 정확히 판독하십시오.
+[가장 중요한 규칙 2: 원문 100% 그대로 판독 (추측·자동완성 엄금)]
+- 영수증에 인쇄된 글자가 잘려 있거나 줄임말이라도 절대 단어를 완성하거나 보충하지 마십시오. (예: 영수증에 'CJ 건그릴비엔280g*2'로 찍혀 있으면 절대 '비엔나'로 바꾸지 말고 인쇄된 글자 그대로 'CJ 건그릴비엔280g*2' 출력)
 
 [출력 양식]
 SHOP: 상호명[OCR] | 상호명[AI복원] | 일자(YYYY-MM-DD, 시간 제외) | 주소
@@ -132,7 +160,7 @@ TOTAL: 인쇄된_최종결제총액
         },
         contents: [{
           parts: [
-            { text: "영수증에 인쇄된 모든 품목과 금액을 누락 없이 원문 그대로 판독하여 출력하십시오." },
+            { text: "영수증에 인쇄된 모든 품목과 금액을 보충이나 추측 없이 인쇄된 글자 그대로 판독하여 출력하십시오." },
             { inline_data: { mime_type: "image/jpeg", data: imageBase64 } }
           ]
         }]

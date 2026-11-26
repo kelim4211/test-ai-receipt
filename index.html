@@ -200,6 +200,11 @@
     const ADMIN_SECRET_PREFIX = "202611123456";
     const TOTAL_REFINE_BUDGET_MS = 180000;
 
+    const KNOWN_BRAND_OR_MAKER_REGEX =
+      /(?:CJ|백설|비비고|해찬들|농심|오뚜기|삼양|동원|오리온|롯데|해태|빙그레|매일|서울우유|남양|풀무원|사조|대상|청정원|광동|코카콜라|펩시|하이트|진로|카스|켈리|테라|소소한하루|피코크|노브랜드|다이소|올리브영)/i;
+
+    const STORE_NEEDED_REGEX = /(?:PB|자체|매장|점포|정육|청과|야채|과일|생선|반찬|도시락|김밥|빵)/i;
+
     let currentShopAddress = "", currentShopName = "", activeReceiptBase64 = null, cropperInstance = null, currentSelectedSource = "", syncBoxRatio = null;
     let activeSessionToken = 0;
 
@@ -271,8 +276,15 @@
       const itemCode = itemCodeMatch ? itemCodeMatch[0] : "";
       const cleanBrand = extractPureBrand(currentShopName);
 
+      const hasProductBrand = KNOWN_BRAND_OR_MAKER_REGEX.test(cleanOcr);
+      const needsStoreContext =
+        STORE_NEEDED_REGEX.test(cleanOcr) ||
+        cleanOcr.replace(/[^가-힣a-zA-Z0-9]/g, '').length <= 3;
+
       const parts = [];
-      if (cleanBrand && !cleanOcr.includes(cleanBrand)) parts.push(cleanBrand);
+      if (!hasProductBrand && needsStoreContext && cleanBrand && !cleanOcr.includes(cleanBrand)) {
+        parts.push(cleanBrand);
+      }
       if (cleanOcr) parts.push(cleanOcr);
       if (itemCode && !cleanOcr.includes(itemCode)) parts.push(itemCode);
 
@@ -613,8 +625,8 @@
         summaryContainer.innerHTML = summaryHTML;
 
         const sumOverallEtc = overallElements.reduce((acc, el) => acc + Number(el.amount || 0), 0);
-        const resolvedTotal = (data.receiptTotal && data.receiptTotal > 0) ? data.receiptTotal : (totalCalculatedProductsAmount + sumOverallEtc);
-        setTxt('summaryFinalPrice', `${resolvedTotal.toLocaleString()}원`);
+        const appCalculatedTotal = totalCalculatedProductsAmount + sumOverallEtc;
+        setTxt('summaryFinalPrice', `${appCalculatedTotal.toLocaleString()}원`);
       }
       document.getElementById('receiptSummarySection').classList.remove('hidden');
     }

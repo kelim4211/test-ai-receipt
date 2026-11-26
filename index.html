@@ -84,7 +84,7 @@
   </div>
 
   <div class="w-full max-w-md mx-auto bg-white min-h-screen flex flex-col shadow-2xl relative border-x border-slate-200">
-    <!-- 💡 헤더 영역: 타이틀 공간 우측 상단에 숫자부터 시작하는 모델명 뱃지 배치 -->
+    <!-- 헤더 영역 -->
     <header class="bg-slate-900 text-white px-4 py-3 sticky top-0 z-40 flex items-center justify-between shadow-md">
       <div class="flex items-center gap-2.5 min-w-0 flex-1 pr-2">
         <div class="w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center text-white shadow-md shrink-0"><i class="fa-solid fa-receipt text-lg"></i></div>
@@ -148,7 +148,6 @@
               <span class="font-black text-brand-900 text-xs">상호명 [AI 복원]</span>
               <div class="flex items-center gap-2"><span id="shopStatusBadgeContainer"></span><span id="part1ShopName" class="font-black text-brand-900 text-xs">-</span></div>
             </div>
-            <div id="shopReasonContainer" class="hidden text-[10.5px] text-amber-800 bg-amber-50 p-2 rounded-lg border border-amber-200 font-medium"></div>
             <div class="text-[11px] text-slate-700 font-bold bg-white/90 p-2.5 rounded-lg border border-blue-100 space-y-2">
               <div class="leading-relaxed break-keep"><span class="text-slate-500 font-medium">매장주소:</span> <span id="part1Address" class="text-slate-900 font-bold whitespace-pre-wrap break-words">정보없음</span></div>
               <div class="pt-1 flex justify-end">
@@ -199,8 +198,10 @@
 
   <script>
     const ADMIN_SECRET_PREFIX = "202611123456";
+    const TOTAL_REFINE_BUDGET_MS = 180000;
 
-    let currentShopAddress = "", currentShopName = "", currentSearchBrand = "", activeReceiptBase64 = null, cropperInstance = null, currentSelectedSource = "", syncBoxRatio = null;
+    let currentShopAddress = "", currentShopName = "", activeReceiptBase64 = null, cropperInstance = null, currentSelectedSource = "", syncBoxRatio = null;
+    let activeSessionToken = 0;
 
     window.onload = function() {
       checkAuthSession();
@@ -254,7 +255,7 @@
       return (brand = brand.replace(/\s+/g, " ").trim()).length >= 2 ? brand : "";
     }
 
-    function buildRagSearchKeyword(item, brandName = "") {
+    function buildRagSearchKeyword(item) {
       const rawOcr = (item.productOcr || item.productAi || "").trim();
       const cleanOcr = rawOcr
         .replace(/^[*\s]+/, "")
@@ -265,26 +266,19 @@
 
       const itemCodeMatch = cleanOcr.match(/\b[A-Z0-9_-]{5,}\b/i);
       const itemCode = itemCodeMatch ? itemCodeMatch[0] : "";
-      const cleanBrand = extractPureBrand(brandName) || extractPureBrand(currentSearchBrand) || extractPureBrand(currentShopName);
+      const cleanBrand = extractPureBrand(currentShopName);
 
       const parts = [];
-      if (cleanBrand && cleanBrand !== '없음' && !cleanOcr.includes(cleanBrand)) parts.push(cleanBrand);
+      if (cleanBrand && !cleanOcr.includes(cleanBrand)) parts.push(cleanBrand);
       if (cleanOcr) parts.push(cleanOcr);
       if (itemCode && !cleanOcr.includes(itemCode)) parts.push(itemCode);
 
       return parts.join(" ").replace(/\s+/g, " ").trim();
     }
 
-    function getSmartSearchURL(item, brandName = "") {
-      const query = buildRagSearchKeyword(item, brandName);
+    function getSmartSearchURL(item) {
+      const query = buildRagSearchKeyword(item);
       return `https://search.naver.com/search.naver?query=${encodeURIComponent(query)}`;
-    }
-
-    function resolveRagRestoredProductName(item) {
-      const restored = (item.productAi || "").trim();
-      const ocr = (item.productOcr || "").trim();
-      if (restored && restored !== "정보없음" && restored !== "미확인") return restored;
-      return ocr;
     }
 
     function purgeImageMemory() {
@@ -296,8 +290,9 @@
     }
 
     function clearAnalysisResidue() {
+      activeSessionToken += 1;
       purgeImageMemory();
-      currentShopAddress = ""; currentShopName = ""; currentSearchBrand = ""; syncBoxRatio = null;
+      currentShopAddress = ""; currentShopName = ""; syncBoxRatio = null;
       ['part1Date', 'part1ShopOcr', 'part1ShopName'].forEach(id => {
         const el = document.getElementById(id);
         if(el) el.innerText = (id === 'part1ShopOcr' || id === 'part1ShopName') ? '정보없음' : '-';
@@ -308,8 +303,6 @@
       if(copyBtn) copyBtn.classList.add('hidden');
       const badgeCont = document.getElementById('shopStatusBadgeContainer');
       if(badgeCont) badgeCont.innerHTML = '';
-      const reasonCont = document.getElementById('shopReasonContainer');
-      if(reasonCont) { reasonCont.innerText = ''; reasonCont.classList.add('hidden'); }
       const countBadge = document.getElementById('productCountBadge');
       if(countBadge) countBadge.innerText = "총 0개 품목";
       const cardList = document.getElementById('productCardList');
@@ -395,19 +388,19 @@
 
     async function startReceiptAnalysis() {
       if (!activeReceiptBase64) { alert('사진을 먼저 첨부해 주세요.'); return; }
-      currentShopName = ""; currentShopAddress = ""; currentSearchBrand = "";
+      const sessionToken = ++activeSessionToken;
+
+      currentShopName = ""; currentShopAddress = "";
       const scanBadge = document.getElementById('scanStatusBadge');
-      if(scanBadge) { scanBadge.innerText = '● 정밀 분석 중...'; scanBadge.className = 'text-[11px] bg-blue-50 text-blue-700 border border-blue-300 font-extrabold px-2.5 py-0.5 rounded-full'; }
+      if(scanBadge) { scanBadge.innerText = '● 1단계 고속 판독 중...'; scanBadge.className = 'text-[11px] bg-blue-50 text-blue-700 border border-blue-300 font-extrabold px-2.5 py-0.5 rounded-full'; }
 
       ['part1ShopOcr', 'part1ShopName'].forEach(id => document.getElementById(id).innerText = '정보없음');
       document.getElementById('part1Date').innerText = '-';
       document.getElementById('part1Address').innerText = '정보없음';
       document.getElementById('copyAddressBtn').classList.add('hidden');
       document.getElementById('shopStatusBadgeContainer').innerHTML = '';
-      const reasonCont = document.getElementById('shopReasonContainer');
-      reasonCont.innerText = ''; reasonCont.classList.add('hidden');
 
-      document.getElementById('productCardList').innerHTML = '<div class="p-8 text-center text-slate-400 font-bold text-xs"><i class="fa-solid fa-spinner fa-spin text-2xl text-brand-600 mb-2"></i><p>품목을 정밀 분석 중입니다...</p></div>';
+      document.getElementById('productCardList').innerHTML = '<div class="p-8 text-center text-slate-400 font-bold text-xs"><i class="fa-solid fa-spinner fa-spin text-2xl text-brand-600 mb-2"></i><p>품목을 고속 판독 중입니다...</p></div>';
       document.getElementById('receiptSummarySection').classList.add('hidden');
 
       const analyzeBtn = document.getElementById('analyzeBtn');
@@ -419,15 +412,21 @@
         const response = await fetch('/api/analyze', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image: activeReceiptBase64 })
+          body: JSON.stringify({ mode: 'ocr', image: activeReceiptBase64 })
         });
         const textResult = await response.text();
         let result;
         try { result = JSON.parse(textResult); } catch (err) { throw new Error(`서버 응답 파싱 실패: ${textResult.substring(0, 80)}`); }
         if (!response.ok) throw new Error(result.error || `서버 통신 오류 (${response.status})`);
 
+        if (sessionToken !== activeSessionToken) return;
         if(scannerLine) scannerLine.classList.add('hidden');
+
         renderAnalysisUI(result);
+
+        if (Array.isArray(result.products) && result.products.length > 0) {
+          refineAllProductsSequentially(result.products, sessionToken);
+        }
       } catch (e) {
         if(scannerLine) scannerLine.classList.add('hidden');
         alert(`[분석 오류 발생]\n${e.message}`);
@@ -437,12 +436,64 @@
       }
     }
 
+    async function refineAllProductsSequentially(products, sessionToken) {
+      const scanBadge = document.getElementById('scanStatusBadge');
+      const brandForSearch = extractPureBrand(currentShopName);
+      const loopStartTime = Date.now();
+
+      for (let i = 0; i < products.length; i++) {
+        if (sessionToken !== activeSessionToken) return;
+        if (Date.now() - loopStartTime > TOTAL_REFINE_BUDGET_MS) break;
+
+        if (scanBadge) {
+          scanBadge.innerText = `● 전 품목 순차 복원 중 (${i + 1}/${products.length})`;
+          scanBadge.className = 'text-[11px] bg-indigo-50 text-indigo-700 border border-indigo-300 font-extrabold px-2.5 py-0.5 rounded-full';
+        }
+
+        const item = products[i];
+        try {
+          const res = await fetch('/api/analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              mode: 'refine',
+              brand: brandForSearch,
+              item: {
+                productOcr: item.productOcr,
+                totalPrice: item.totalPrice
+              }
+            })
+          });
+
+          if (sessionToken !== activeSessionToken) return;
+          if (res.ok) {
+            const refineData = await res.json();
+            if (refineData && refineData.productAi) {
+              products[i].productAi = refineData.productAi;
+              const aiNameEl = document.getElementById(`productAiName_${i}`);
+              if (aiNameEl) {
+                const restored = (products[i].productAi || '').trim();
+                aiNameEl.innerText = (restored && restored !== '정보없음' && restored !== '미확인') ? restored : (products[i].productOcr || '');
+              }
+            }
+          }
+        } catch (err) {
+          // 단일 품목 검색 실패 시 원본 유지 후 다음 품목 계속 진행
+        }
+      }
+
+      if (sessionToken === activeSessionToken && scanBadge) {
+        scanBadge.innerText = '● 분석 및 복원 완료';
+        scanBadge.className = 'text-[11px] bg-emerald-50 text-emerald-700 border border-emerald-300 font-extrabold px-2.5 py-0.5 rounded-full';
+      }
+    }
+
     function renderAnalysisUI(data) {
       const setTxt = (id, val) => { const el = document.getElementById(id); if(el) el.innerText = val; };
       const toFastNumber = (val) => (typeof val === 'number' ? val : Number(String(val || 0).replace(/[^0-9]/g, '')) || 0);
 
       const scanBadge = document.getElementById('scanStatusBadge');
-      if (scanBadge) { scanBadge.innerText = '● 분석 완료'; scanBadge.className = 'text-[11px] bg-emerald-50 text-emerald-700 border border-emerald-300 font-extrabold px-2.5 py-0.5 rounded-full'; }
+      if (scanBadge) { scanBadge.innerText = '● 1단계 판독 완료'; scanBadge.className = 'text-[11px] bg-emerald-50 text-emerald-700 border border-emerald-300 font-extrabold px-2.5 py-0.5 rounded-full'; }
 
       if (data.activeModel) {
         const modelBadge = document.getElementById('headerModelBadge');
@@ -457,20 +508,18 @@
       if (currentShopName.includes('미확인') || currentShopName.length < 2) currentShopName = '정보없음';
       setTxt('part1ShopName', currentShopName);
 
-      currentSearchBrand = (data.searchBrand || '').trim();
       const rawDate = data.date || '-';
       setTxt('part1Date', (rawDate !== '-' && rawDate !== '미확인') ? rawDate.split(' ')[0] : '-');
 
-      const badgeContainer = document.getElementById('shopStatusBadgeContainer'), reasonContainer = document.getElementById('shopReasonContainer');
-      if (data.shopConfidence === 'estimated') {
-        if (badgeContainer) badgeContainer.innerHTML = `<span class="text-[10px] bg-amber-500 text-white font-black px-2.5 py-0.5 rounded-full shadow-xs">AI 추정</span>`;
-        if (reasonContainer && data.shopReason) { reasonContainer.innerText = `💡 유추 근거: ${data.shopReason}`; reasonContainer.classList.remove('hidden'); }
-      } else if (data.shopConfidence === 'official') {
-        if (badgeContainer) badgeContainer.innerHTML = `<span class="text-[10px] bg-emerald-600 text-white font-black px-2.5 py-0.5 rounded-full shadow-xs">공식 정보</span>`;
-        if (reasonContainer) reasonContainer.classList.add('hidden');
-      } else {
-        if (badgeContainer) badgeContainer.innerHTML = `<span class="text-[10px] bg-slate-400 text-white font-black px-2.5 py-0.5 rounded-full">정보 없음</span>`;
-        if (reasonContainer) reasonContainer.classList.add('hidden');
+      const badgeContainer = document.getElementById('shopStatusBadgeContainer');
+      if (badgeContainer) {
+        if (data.shopConfidence === 'estimated') {
+          badgeContainer.innerHTML = `<span class="text-[10px] bg-amber-500 text-white font-black px-2.5 py-0.5 rounded-full shadow-xs">AI 추정</span>`;
+        } else if (data.shopConfidence === 'official') {
+          badgeContainer.innerHTML = `<span class="text-[10px] bg-emerald-600 text-white font-black px-2.5 py-0.5 rounded-full shadow-xs">공식 정보</span>`;
+        } else {
+          badgeContainer.innerHTML = `<span class="text-[10px] bg-slate-400 text-white font-black px-2.5 py-0.5 rounded-full">정보 없음</span>`;
+        }
       }
 
       currentShopAddress = data.address || '정보없음';
@@ -497,9 +546,8 @@
         totalProductDiscountSum += numDisc;
         totalCalculatedProductsAmount += finalPrice;
 
-        const restoredProductName = resolveRagRestoredProductName(item);
-        const searchURL = getSmartSearchURL(item, currentSearchBrand);
-        const discountDisplay = `<span class="font-black text-sm text-rose-600">-${numDisc.toLocaleString()}</span>`;
+        const restored = (item.productAi || '').trim();
+        const restoredProductName = (restored && restored !== '정보없음' && restored !== '미확인') ? restored : (item.productOcr || '');
 
         const card = document.createElement('div');
         card.className = "bg-white border-2 border-slate-200 rounded-2xl p-3.5 space-y-3 shadow-sm text-xs";
@@ -515,15 +563,15 @@
           </div>
           <div class="bg-slate-50 p-2 rounded-xl border border-slate-100">
             <span class="text-[10px] text-brand-600 font-bold">제품명 [AI 복원]</span>
-            <p class="font-black text-slate-900 text-sm">${restoredProductName}</p>
+            <p id="productAiName_${index}" class="font-black text-slate-900 text-sm">${restoredProductName}</p>
           </div>
           <div class="grid grid-cols-3 gap-1 text-center bg-white p-2 rounded-lg border border-slate-200">
             <div class="flex flex-col justify-center"><span class="text-[9px] text-slate-500 block">단가*수량</span><span class="font-black text-sm text-slate-900">${originalPrice.toLocaleString()}</span></div>
-            <div class="border-x flex flex-col items-center justify-center overflow-hidden"><span class="text-[9px] text-slate-500 block shrink-0">할인액</span>${discountDisplay}</div>
+            <div class="border-x flex flex-col items-center justify-center overflow-hidden"><span class="text-[9px] text-slate-500 block shrink-0">할인액</span><span class="font-black text-sm text-rose-600">-${numDisc.toLocaleString()}</span></div>
             <div class="flex flex-col justify-center"><span class="text-[9px] text-slate-500 block">금액</span><span class="font-black text-sm text-brand-700">${finalPrice.toLocaleString()}</span></div>
           </div>
         `;
-        card.querySelector('.search-action-btn').onclick = () => openCompactPopup(searchURL);
+        card.querySelector('.search-action-btn').onclick = () => openCompactPopup(getSmartSearchURL(item));
         fragment.appendChild(card);
       });
       cardListContainer.appendChild(fragment);

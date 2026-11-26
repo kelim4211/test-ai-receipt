@@ -140,5 +140,3 @@ TOTAL: 인쇄된_최종결제총액
 
 module.exports = handler;
 module.exports.maxDuration = maxDuration;
-```[cite: 4]
-

@@ -44,7 +44,7 @@
 <body class="bg-slate-100 text-slate-800 antialiased min-h-screen flex flex-col justify-between selection:bg-brand-500 selection:text-white">
 
   <!-- 관리자 암호 인증 모달 -->
-  <div id="authModal" class="fixed inset-0 z-50 bg-slate-950/90 flex items-center justify-center p-4 hidden">
+  <div id="authModal" class="fixed inset-0 z-50 bg-slate-950/90 flex items-center justify-center p-4">
     <div class="bg-white w-full max-w-sm rounded-2xl p-6 space-y-4 shadow-2xl border border-slate-200">
       <div class="text-center space-y-1">
         <div class="w-12 h-12 bg-brand-50 text-brand-600 rounded-2xl mx-auto flex items-center justify-center text-xl shadow-sm mb-2">
@@ -218,11 +218,14 @@
       const isAuthed = sessionStorage.getItem('receipt_app_auth');
       const authMonth = sessionStorage.getItem('receipt_app_month');
       const currentYM = getSystemYearMonth();
+      const authModal = document.getElementById('authModal');
 
       if (isAuthed !== 'true' || authMonth !== currentYM) {
         sessionStorage.removeItem('receipt_app_auth');
         sessionStorage.removeItem('receipt_app_month');
-        document.getElementById('authModal').classList.remove('hidden');
+        if (authModal) authModal.classList.remove('hidden');
+      } else {
+        if (authModal) authModal.classList.add('hidden');
       }
     }
 

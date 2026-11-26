@@ -36,14 +36,13 @@ function isGroundedInSearchResult(ocr, candidateName) {
 
   if (!normalizedOcr || !normalizedCandidate) return false;
 
-  // 원본의 핵심 글자(2음절 이상 조각) 중 최소 하나라도 복원명에 남아 있는지 확인
-  const chunks = [];
-  for (let i = 0; i <= normalizedOcr.length - 2; i++) {
-    chunks.push(normalizedOcr.slice(i, i + 2));
+  const prefixLen = Math.min(normalizedOcr.length, 4);
+  for (let len = prefixLen; len >= 2; len--) {
+    const prefix = normalizedOcr.slice(0, len);
+    if (normalizedCandidate.includes(prefix)) return true;
   }
-  if (chunks.length === 0) return normalizedCandidate.includes(normalizedOcr);
 
-  return chunks.some((chunk) => normalizedCandidate.includes(chunk));
+  return false;
 }
 
 async function searchSingleProduct(apiUrl, item, brandCtx) {
@@ -53,13 +52,13 @@ async function searchSingleProduct(apiUrl, item, brandCtx) {
   const queryKw = buildOptimizedQuery(ocr, brandCtx);
   const priceText = item?.totalPrice ? `${item.totalPrice}원` : '미상';
 
-  const refinePrompt = `당신은 Google 검색 결과 근거에만 기반해 한국 유통·쇼핑몰 정식 제품명을 대조하는 엄격한 매칭기입니다.
-반드시 Google 검색 도구를 실행하고, **검색 결과 텍스트에 실제로 확인된 상품명**만 근거로 판단하십시오.
+  const refinePrompt = `당신은 한국 유통·쇼핑몰 정식 제품명 매칭 전문가입니다.
+반드시 Google 검색 도구를 실행하여 네이버 가격비교, 11번가, SSG닷컴, 이마트몰 등 국내 쇼핑몰에 실제로 존재하는 상품명을 찾고 **쇼핑몰에 실제로 있는 정식 제품명을 최우선으로 매칭**하십시오.
 
-[엄격한 검색 근거 규칙]
-1. 검색 결과에 실제로 나타난 상품명 표현만을 근거로 채택하십시오. 검색 결과에 없는 단어나 추측성 수식어·용량·맛 설명을 임의로 지어내거나 덧붙이지 마십시오.
-2. 검색 결과에서 '조합검색어' 및 '원본제품명'과 일치하는 실존 상품명이 명확히 확인되지 않으면, 절대 추측해 바꾸지 말고 원본제품명(${ocr})을 그대로 출력하십시오.
-3. 검색 결과에 실존 상품명이 확인되더라도 [특가], 무료배송, 1+1, 오늘출발, 행사기간 등 판촉 문구는 제외하고 검색 결과에 기재된 실제 상품명만 남기십시오.
+[쇼핑몰 우선 매칭 규칙]
+1. 검색 결과에 쇼핑몰·가격비교 상품명이 확인되면, 원본 품명이 영수증 칸 제약으로 중간·끝부분이 잘렸거나 축약된 형태(예: '* 소소한하루 무농약 콩' -> '소소한하루 무농약 콩나물 200g')라도 쇼핑몰의 실제 정식 제품명을 우선 선택하십시오.
+2. 맨 앞의 '*' 같은 영수증 기호나 [특가], 무료배송, 1+1, 최저가 등 광고·부대 문구는 제거하고 실제 제품명만 출력하십시오.
+3. 검색 결과에서 관련 쇼핑몰 상품명을 전혀 찾지 못한 경우에만 원본제품명(${ocr})을 그대로 출력하십시오.
 4. 설명, 번호, 따옴표, 줄바꿈 없이 오직 최종 제품명 한 줄만 출력하십시오.`;
 
   const controller = new AbortController();

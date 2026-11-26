@@ -348,8 +348,8 @@
 
     function confirmCrop() {
       if (!cropperInstance) return;
-      const croppedCanvas = cropperInstance.getCroppedCanvas({ maxWidth: 2560, maxHeight: 4096, imageSmoothingEnabled: true, imageSmoothingQuality: 'high' });
-      activeReceiptBase64 = croppedCanvas.toDataURL('image/jpeg', 0.95);
+      const croppedCanvas = cropperInstance.getCroppedCanvas({ maxWidth: 1600, maxHeight: 2800, imageSmoothingEnabled: true, imageSmoothingQuality: 'high' });
+      activeReceiptBase64 = croppedCanvas.toDataURL('image/jpeg', 0.88);
       const img = document.getElementById('uploadedReceiptImg');
       if (img) { img.src = activeReceiptBase64; img.classList.remove('hidden'); }
       const previewCont = document.getElementById('receiptPreviewContainer');

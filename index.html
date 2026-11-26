@@ -166,31 +166,31 @@
           <p class="text-slate-400 py-6 text-center font-bold">사진을 첨부한 후 [분석 실행]을 누르세요.</p>
         </div>
 
-        <!-- 전체 정산 요약 -->
-        <div id="overallCalculationContainer" class="border border-slate-200 bg-slate-50/50 rounded-xl p-3 space-y-2 hidden">
+        <!-- 전체 정산 요약 영수증 디자인 -->
+        <div id="overallCalculationContainer" class="border border-blue-100 bg-blue-50/20 rounded-2xl p-4 space-y-3 hidden">
           <div class="flex items-center justify-between">
-            <h4 class="text-xs font-black text-slate-700">전체 정산 요약</h4>
-            <span class="text-[10px] bg-slate-200 text-slate-700 font-bold px-2 py-0.5 rounded">자체 검산 완료</span>
+            <h4 class="text-xs font-black text-blue-900 flex items-center gap-1.5"><i class="fa-solid fa-calculator text-blue-700"></i> 전체 정산 요약</h4>
+            <span class="text-[10px] bg-emerald-600 text-white border border-emerald-500 font-black px-2 py-0.5 rounded-full shadow-sm">자체 검산 완료</span>
           </div>
-          <div class="space-y-1 text-xs border-y border-slate-200 py-2">
+          <div class="space-y-1 text-xs border-y border-blue-100/50 py-2">
             <div class="flex justify-between text-slate-600 font-bold">
               <span>품목 정가 합계</span>
               <span id="calcItemNormalSum">0원</span>
             </div>
-            <div id="calcTaxBaseRow" class="flex justify-between text-slate-600 font-bold pl-3 gap-1">
+            <div id="calcTaxBaseRow" class="flex justify-between text-amber-700 font-bold pl-3 gap-1">
               <span>└ 공급가액</span>
               <span id="calcTaxBaseSum">0원</span>
             </div>
-            <div id="calcAdjustmentRow" class="flex justify-between text-slate-600 font-bold pl-3 gap-1 hidden">
+            <div id="calcAdjustmentRow" class="flex justify-between text-amber-700 font-bold pl-3 gap-1 hidden">
               <span>└ 오류 보정액</span>
               <span id="calcAdjustmentSum">0원</span>
             </div>
           </div>
           <div class="flex items-center justify-between pt-1">
-            <span class="font-black text-slate-800 text-xs">최종 결제 가격 (앱 산출)</span>
+            <span class="font-black text-slate-800">최종 결제 가격 (앱 산출)</span>
             <div class="flex items-center gap-2">
-              <span id="resCalculationTotal" class="font-extrabold text-sm text-brand-600">0원</span>
-              <button onclick="copyRichTextResults()" class="bg-brand-600 hover:bg-brand-700 active:scale-95 text-white font-black text-[10px] px-2.5 py-1.5 rounded-lg transition flex items-center gap-1">
+              <span id="resCalculationTotal" class="font-extrabold text-base text-brand-600">0원</span>
+              <button onclick="copyRichTextResults()" class="bg-brand-600 hover:bg-brand-700 active:scale-95 text-white font-black text-[10px] px-2.5 py-1.5 rounded-lg border border-brand-500 shadow-sm transition flex items-center gap-1">
                 <i class="fa-solid fa-copy"></i> <span>결과 전체복사</span>
               </button>
             </div>
